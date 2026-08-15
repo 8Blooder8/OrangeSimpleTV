@@ -1,0 +1,129 @@
+--- a/app/src/main/assets/orange_bridge.js
++++ b/app/src/main/assets/orange_bridge.js
+@@
+-  if (window.__OSTV && window.__OSTV.version >= 13) return;
++  if (window.__OSTV && window.__OSTV.version >= 14) return;
+@@
++  function invokeReactMouseEnter(target) {
++    if (!target) return { ok:false, debug:'no-tile' };
++    var keys = [];
++    try { keys = Object.getOwnPropertyNames(target); } catch (_) {}
++    for (var i = 0; i < keys.length; i++) {
++      var k = keys[i], props = null;
++      try {
++        if (k.indexOf('__reactProps$') === 0) props = target[k];
++        else if (k.indexOf('__reactFiber$') === 0 && target[k] && target[k].memoizedProps) props = target[k].memoizedProps;
++      } catch (_) {}
++      if (!props || typeof props.onMouseEnter !== 'function') continue;
++      try {
++        props.onMouseEnter.call(undefined, {
++          type:'mouseenter', target:target, currentTarget:target,
++          nativeEvent:{ type:'mouseenter', target:target, isTrusted:false },
++          preventDefault:function(){}, stopPropagation:function(){}, persist:function(){}
++        });
++        return { ok:true, source:k.indexOf('__reactProps$') === 0 ? 'props' : 'fiber' };
++      } catch (e) {
++        return { ok:false, debug:'react-mouseenter-error:' + String(e) };
++      }
++    }
++    return { ok:false, debug:'no-react-onMouseEnter' };
++  }
++
++  function channelPlayTarget(card) {
++    if (!card) return null;
++    var icon = null;
++    try { icon = card.querySelector('[data-testid="IconPlayerPlay"]'); } catch (_) {}
++    if (!icon) return null;
++    var button = buttonAncestor(icon);
++    return button && visible(button) ? button : null;
++  }
++
+   function primeChannelTile(target) {
+@@
+-    // Orange reveals the centered Play overlay after hover/focus. Prime that exact tile first,
+-    // then Android's trusted MotionEvent is sent to the same center point.
++    // Real diagnostic: TileWrapper onMouseEnter flips React hover state and Play is
++    // mounted asynchronously. Reveal and click must be separate state-machine steps.
+     ['pointerover','pointerenter','mouseover','mouseenter','mousemove'].forEach(function (type) {
+       try { target.dispatchEvent(makeMouseEvent(type, target, x, y)); fired.push(type); } catch (_) {}
+     });
+-    try {
+-      var hadTab = target.hasAttribute('tabindex');
+-      var oldTab = target.getAttribute('tabindex');
+-      if (!hadTab) target.setAttribute('tabindex', '-1');
+-      if (typeof target.focus === 'function') {
+-        try { target.focus({ preventScroll:true }); } catch (_) { target.focus(); }
+-      }
+-      if (!hadTab) target.removeAttribute('tabindex');
+-      else target.setAttribute('tabindex', oldTab);
+-    } catch (_) {}
+-
+-    return { ok:true, x:x, y:y, debug:'tile-center; hover=' + fired.join(',') };
++    var react = invokeReactMouseEnter(target);
++    return { ok:true, x:x, y:y,
++      debug:'tile-center; reveal-only; hover=' + fired.join(',') +
++        '; reactMouseEnter=' + (react.ok ? react.source : react.debug) };
+@@
+-    // Strategy 0: prime hover/focus so Orange renders the centered Play overlay, then ask
+-    // Android for a trusted tap at the EXACT CENTER OF TileWrapper.
++    // After React commits hover, resolve the REAL 40x40 Play button and tap it.
++    var playTarget = channelPlayTarget(card);
++    if (playTarget) {
++      var pr = rectOf(playTarget);
++      return {
++        kind:'NATIVE_TAP_PLAY',
++        x:(pr.left+pr.right)/2, y:(pr.top+pr.bottom)/2,
++        vw:innerWidth, vh:innerHeight,
++        debug:found.name + '; play-button=' + nodeDebug(playTarget)
++      };
++    }
++
++    // Reveal only. An immediate tap races React and lands on the logo beneath Play.
+     if (attempt === 0) {
+       var primed = primeChannelTile(target);
+       return {
+-        kind:'NATIVE_TAP',
++        kind:'REVEAL_PLAY',
+         x:primed.ok ? primed.x : (r.left+r.right)/2,
+         y:primed.ok ? primed.y : (r.top+r.bottom)/2,
+@@
+-    version: 13,
++    version: 14,
+--- a/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java
++++ b/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java
+@@
+     private String urlBeforeChannelTap = "";
+     private int channelTapAttempts = 0;
++    private int channelRevealAttempts = 0;
+@@
+         channelTapAttempts = 0;
++        channelRevealAttempts = 0;
+@@
++                if ("REVEAL_PLAY".equals(kind)) {
++                    channelRevealAttempts++;
++                    lastTuneDebug = kind + ": " + action.optString("debug", "");
++                    if (channelRevealAttempts <= 8) {
++                        playerLoading.setText("Pokazuję przycisk Play dla " + c.displayName + "…");
++                        // Real trace: Play appears shortly after TileWrapper mouseenter.
++                        // Wait for React/WebView commit, then resolve the actual button.
++                        scheduleTuneAutomation(80);
++                    } else {
++                        channelTapAttempts = Math.max(channelTapAttempts, 1);
++                        playerLoading.setText("Próbuję alternatywnego otwarcia " + c.displayName + "…");
++                        scheduleTuneAutomation(80);
++                    }
++                    return;
++                }
++
+                 if ("ACTIVATION_FAILED".equals(kind)) {
+@@
+-                if ("NATIVE_TAP".equals(kind) || "DOM_EVENTS".equals(kind) ||
++                if ("NATIVE_TAP_PLAY".equals(kind) || "NATIVE_TAP".equals(kind) || "DOM_EVENTS".equals(kind) ||
+                         "REACT_ONCLICK".equals(kind) || "ELEMENT_CLICK".equals(kind)) {
+                     channelTapAt = System.currentTimeMillis();
++                    channelRevealAttempts = 0;
+                     channelTapAttempts++;
+                     awaitingChannelTransition = true;
+-                    if ("NATIVE_TAP".equals(kind)) {
++                    if ("NATIVE_TAP_PLAY".equals(kind) || "NATIVE_TAP".equals(kind)) {
+                         boolean handled = dispatchActionTap(action);
