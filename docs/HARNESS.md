@@ -20,8 +20,12 @@ This repository is optimized for fast, repeatable agent-assisted development.
 - Never send the tuning tap in the same step that reveals hover state. First reveal, wait for React/WebView commit, then re-query the card and resolve `[data-testid="IconPlayerPlay"]`.
 - The actual tune tap must target the closest real `<button>` containing `IconPlayerPlay`, not the underlying logo/image or `Channel-ChannelWrapper` text area.
 - A real captured tile was 196×140 and the Play button 40×40 with the same center; geometry may scale, so always compute `getBoundingClientRect()` at runtime rather than hard-coding pixels.
-- A valid final player is Orange's official `[data-testid="player-container"]` in `mode="expanded"` with `#video-player`.
+- A valid player shell is Orange's official `[data-testid="player-container"]` in `mode="expanded"` with `#video-player`.
+- **`mode="expanded"` and `IconPlayerPause` are not proof that video is visible.** Real runtime traces show an expanded player can exist while `readyState=0`, decoded size is `0x0`, and no frame has been presented.
+- Final tune success requires rendered-video evidence: decoded size > 0, `readyState >= 2`, not paused/ended, plus a recent render/progress signal (`requestVideoFrameCallback`, playback-quality frames, or forward `currentTime` progress) held stable briefly.
 - `mode="background"` is a valid intermediate player state, never final success; when Orange exposes `IconPlayerScroll`, use its own control to reach `expanded`.
+- **Clean-player mode is non-invasive.** Never resize/reposition `#video-player`, its DRM-owned container, or `#player-wrapper`; hide Orange controls with opacity/pointer-events only and keep React/player nodes mounted.
+- Android `onShowCustomView()` is not a tune-success signal; keep the native loading cover until rendered-video proof is available.
 - Preserve the official WebView/EME/Widevine media path. No DRM circumvention, extracted keys, or replacement stream pipeline.
 
 ## Login invariants
