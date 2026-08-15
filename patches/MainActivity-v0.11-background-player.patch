@@ -1,0 +1,60 @@
+--- a/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java
++++ b/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java
+@@ -832,17 +832,33 @@
+ 
+             if (awaitingChannelTransition) {
+                 long waited = System.currentTimeMillis() - channelTapAt;
++                boolean backgroundReady = state.optBoolean("backgroundPlayer", false) &&
++                        state.optBoolean("hasVideo", false) && state.optBoolean("expandAvailable", false);
+                 lastTuneDebug = "CHANNEL_WAIT: mode=" + state.optString("mode", "") +
++                        ", video=" + state.optBoolean("hasVideo", false) +
++                        ", expand=" + state.optBoolean("expandAvailable", false) +
+                         ", cards=" + state.optInt("channelCards", 0);
++
++                // The real Orange /channels page keeps playback in mode=background after
++                // channel activation. That is a valid intermediate state, not a failed tap.
++                // Give Orange a short settling window, then use its own expand control.
++                if (backgroundReady && waited >= 450L) {
++                    awaitingChannelTransition = false;
++                    inspectPlayer(c);
++                    return;
++                }
++
+                 if (waited < 3000L) {
+-                    playerLoading.setText("Uruchamiam " + c.displayName + "…");
+-                    scheduleTuneAutomation(220);
++                    playerLoading.setText(backgroundReady
++                            ? "Otwieram " + c.displayName + " na pełnym ekranie…"
++                            : "Uruchamiam " + c.displayName + "…");
++                    scheduleTuneAutomation(backgroundReady ? 120 : 220);
+                     return;
+                 }
+                 awaitingChannelTransition = false;
+                 if (channelTapAttempts >= 4) {
+                     playerLoading.setText("Nie udało się otworzyć " + c.displayName +
+-                            "\nKafelek znaleziony, ale Orange nie otworzył playera." +
++                            "\nKafelek znaleziony, ale Orange nie przeszedł do odtwarzacza." +
+                             (lastTuneDebug.isEmpty() ? "" : "\n" + lastTuneDebug));
+                     return;
+                 }
+@@ -963,6 +979,20 @@
+                 return;
+             }
+ 
++            if ("TAP_EXPAND".equals(kind)) {
++                long now = System.currentTimeMillis();
++                if (now >= nextPlayerTapAt) {
++                    boolean handled = dispatchActionTap(action);
++                    playerTapAttempts++;
++                    nextPlayerTapAt = now + 900L;
++                    lastTuneDebug = kind + ": " + action.optString("debug", "") +
++                            (handled ? "" : "; WebView nie przyjął MotionEvent");
++                    playerLoading.setText("Otwieram " + c.displayName + " na pełnym ekranie…");
++                }
++                scheduleTuneAutomation(220);
++                return;
++            }
++
+             if ("TAP_PLAY".equals(kind)) {
+                 long now = System.currentTimeMillis();
+                 if (now >= nextPlayerTapAt) {
