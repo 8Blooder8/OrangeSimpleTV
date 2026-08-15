@@ -2,6 +2,8 @@ name: Fast quality gate
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'app/**'
       - 'tests/**'
@@ -19,7 +21,7 @@ on:
       - '.github/workflows/dom-tests.yml'
 
 concurrency:
-  group: fast-gate-${{ github.ref }}
+  group: fast-gate-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
