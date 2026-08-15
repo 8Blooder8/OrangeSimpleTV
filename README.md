@@ -1,22 +1,19 @@
-# Orange Simple TV v0.18
+# Orange Simple TV v0.19
 
-Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Sagemcom Orange 4K Multi (DIW377).
+## v0.19 — guide overlay + performance
 
-## v0.18 — TV UI + szybkie przełączanie
+- nowy interfejs TV: lista po lewej, duży placeholder/podgląd i karta programu po prawej, bez dolnej legendy,
+- po BACK z działającego kanału lista otwiera się wyłącznie jako boczny overlay; video dalej działa pełnoekranowo i nie jest resizeowane,
+- OK podczas oglądania pokazuje własną kartę kanału/programu,
+- emulator automatycznie używa pełnoekranowego placeholdera video, więc cały UX można testować bez Widevine,
+- loga nie mają ciemnego prostokątnego tła,
+- metadane kanałów są cacheowane i pojawiają się natychmiast przy kolejnym wejściu, po czym są odświeżane w tle,
+- loga mają cache RAM + dyskowy i 6 równoległych workerów,
+- aktualny kanał i pierwsze 24 loga mają priorytet, reszta jest prefetchowana chwilę później,
+- zachowany jest v0.18 warm switch bez przeładowania `/channels`,
+- skrócony jest reveal Play i fallback rozpoznawania nowego playera,
+- techniczne stany DRM/WebView pozostają poza normalnym UI.
 
-- lista kanałów pokazuje numer, logo, nazwę i aktualny program,
-- `CH+` wybiera następny kanał w dół listy, `CH-` poprzedni w górę,
-- normalna zmiana kanału nie przeładowuje całej strony `/channels`, jeśli Orange nadal ma listę kanałów w DOM,
-- istniejący player jest sprowadzany do trybu background i następny kanał jest aktywowany w tej samej, rozgrzanej instancji WebView,
-- bridge JS jest instalowany raz na dokument zamiast przy każdym pollu strojenia,
-- ciężka macierz EME/Widevine jest lazy i uruchamia się dopiero przy realnym zastoju mediów,
-- potwierdzenie renderowania po pierwszej rzeczywistej klatce skrócono z 650 ms do 120 ms,
-- na czystej instalacji pomijany jest zbędny session probe `/channels`, a formularz logowania jest preładowywany w tle,
-- discovery kanałów nie ma sztucznego minimum 1,8 s,
-- podczas strojenia użytkownik widzi tylko szare tło, spinner i `Ładowanie…`, bez technicznych etapów WebView/DRM,
-- obraz nowego kanału jest odsłaniany dopiero po potwierdzonym renderze,
-- diagnostyka v0.17 pozostaje dostępna poza hot-pathem.
-
-Playback pozostaje po stronie oficjalnego playera Orange/WebView. Nie implementujemy własnego DRM ani nie podmieniamy `src`/MediaKeys.
+Playback/DRM pozostaje własnością oficjalnego playera Orange.
 
 Szybki build bez Gradle pozostaje: AAPT2 → javac → D8 → zipalign → apksigner.
