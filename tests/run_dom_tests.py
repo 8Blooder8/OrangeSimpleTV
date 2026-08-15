@@ -1,5 +1,6 @@
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 JS = (ROOT / 'app/src/main/assets/orange_bridge.js').read_text(encoding='utf-8')
@@ -13,7 +14,10 @@ def load(page, name):
 
 def main():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
+        exe = shutil.which('chromium') or shutil.which('google-chrome') or shutil.which('google-chrome-stable')
+        if not exe:
+            raise RuntimeError('No system Chromium/Chrome found')
+        browser = p.chromium.launch(headless=True, executable_path=exe, args=['--no-sandbox'])
         page = browser.new_page(viewport={'width': 1920, 'height': 1080})
 
         load(page, 'channels.html')
