@@ -17,16 +17,20 @@ def main() -> None:
     require(js, '[data-testid="Channel-ChannelWrapper"]', 'real Orange channel-card selector')
     require(js, '[data-testid="player-container"]', 'real Orange player container selector')
     require(js, '#video-player', 'real Orange video selector')
-    require(js, "p.mode==='expanded'", 'expanded mode is required before player success')
+    require(js, "p.mode === 'expanded'", 'expanded mode remains final player success')
+    require(js, "p.mode === 'background'", 'background mode is modeled as an intermediate player state')
+    require(js, 'backgroundPlayer', 'background player state is exposed to Android')
+    require(js, 'IconPlayerScroll', 'Orange background-to-expanded control is detected')
+    require(js, 'TAP_EXPAND', 'Android receives a native expand-tap action')
     require(js, 'reactClickHandler', 'React activation fallback stays available')
-    require(js, 'NATIVE_TAP', 'native WebView tap remains first-class activation strategy')
+    require(js, 'NATIVE_TAP', 'native WebView tap remains first-class channel activation strategy')
     require(js, '/\\/channels(?:[/?#]|$)/i', 'channel-route check targets /channels')
 
     if '/live/channels' in js:
         raise AssertionError('obsolete Orange route /live/channels must never return')
 
-    # We keep playback in the official Orange page/WebView. The bridge should not
-    # grow its own manifest/license extraction path.
+    # Playback remains inside the official Orange page/WebView. Do not grow a
+    # separate manifest/license extraction path.
     forbidden_runtime_terms = [
         'licenseRequest', 'widevineKey', 'psshExtractor', 'mpdManifestUrl',
         'm3u8ManifestUrl', 'drmKey', 'contentKey'
@@ -36,7 +40,7 @@ def main() -> None:
             raise AssertionError(f'forbidden custom DRM/manifest path detected: {term}')
 
     # Sanitized fixtures may contain normal page copy mentioning cookies, but not
-    # obvious credential/header material or token assignments.
+    # credential/header material or token assignments.
     secret_patterns = [
         re.compile(r'(?im)^\s*Cookie\s*:'),
         re.compile(r'(?im)^\s*Set-Cookie\s*:'),
