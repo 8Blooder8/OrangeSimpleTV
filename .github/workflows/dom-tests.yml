@@ -1,22 +1,46 @@
-name: DOM tests
+name: Fast quality gate
 
 on:
   push:
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'AGENTS.md'
+      - 'docs/HARNESS.md'
+      - '.github/workflows/dom-tests.yml'
   pull_request:
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'AGENTS.md'
+      - 'docs/HARNESS.md'
+      - '.github/workflows/dom-tests.yml'
+
+concurrency:
+  group: fast-gate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
-      - name: Install test dependency
-        run: pip install playwright
+
+      - name: Mechanical invariants
+        run: python tests/test_invariants.py
+
+      - name: Install DOM-test dependency
+        run: pip install --disable-pip-version-check -q playwright
+
       - name: Locate preinstalled Chrome
-        run: |
-          which google-chrome || which google-chrome-stable || which chromium
-      - name: Run DOM tests
+        run: which google-chrome || which google-chrome-stable || which chromium
+
+      - name: Real-snapshot DOM regression tests
         run: python tests/run_dom_tests.py
