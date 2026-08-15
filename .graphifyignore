@@ -1,0 +1,49 @@
+# Secrets / private captures
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+.env
+.env.*
+**/*cookies*
+**/*session*
+**/*token*
+raw/
+private/
+
+# User-provided live Orange captures must never be indexed/committed
+KANAŁY.htm
+TVP.htm
+Orange TV Go.htm
+
+# Build/tool output
+out/
+build/
+dist/
+.gradle/
+.tools/
+.fastbuild/
+node_modules/
+__pycache__/
+*.pyc
+*.apk
+*.aab
+*.dex
+*.class
+
+# SDK / IDE noise
+.idea/
+.vscode/
+local.properties
+
+# Generated Graphify visualization/cache: retain only portable/queryable outputs
+# graph.json, GRAPH_REPORT.md and manifest.json stay tracked when generated.
+graphify-out/cache/
+graphify-out/cost.json
+graphify-out/graph.html
+graphify-out/converted/
+graphify-out/.graphify_*.json
+graphify-out/.graphify_*.txt
+graphify-out/.graphify_python
+graphify-out/.graphify_root
