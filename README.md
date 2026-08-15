@@ -1,37 +1,35 @@
-# Orange Simple TV v0.26
+# Orange Simple TV v0.27
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod DIW377.
 
-## v0.26 — fix z realnych logów DIW377
+## v0.27 — poprawka przełączania z realnego logu DIW377
 
-Zmiany wynikają bezpośrednio z raportów `ostv-*` z fizycznego dekodera:
+- poprawione zamykanie starego playera: Orange ma dwa `ClosePlayerButtonWrapper`; aplikacja wybiera teraz wyłącznie właściwy przycisk X (`player_close_X`), a nie pierwszy przycisk Back,
+- maks. 2 ponowienia oficjalnego handlera X i krótszy 1400 ms deadline,
+- aktywacja kafelka zwraca jego realną nazwę/id; mismatch targetu blokuje tap zamiast uruchomić zły kanał,
+- EPG/resource harvesting jest pauzowany na czas tune/switch,
+- jeśli React ma komplet godzin, kosztowny resource replay nie jest wykonywany,
+- sukces switchu zapisuje lekki snapshot diagnostyczny zamiast ciężkiego `uiDiagnostics()` na hot path,
+- stare callbacki live-edge nie mogą dopisywać eventów do nowej sesji,
+- lokalne logo, stabilna numeracja, EPG merge i Windows asset packaging z poprzednich wersji pozostają.
 
-- naprawione dwa błędne expressions `evalBridge`; surowy łańcuch z `;` był wkładany do `JSON.stringify(...)`, co dawało `SyntaxError: missing ) after argument list`,
-- pierwszy błąd powodował fałszywe `channelCards=0` i zbędny reload `/channels` przy tune/switchu,
-- drugi powodował, że player był już realnie `PLAYING` (RVFC, readyState=4, 1024x576, rosnące frames), ale `finishTune()` nigdy nie następował i kończyło się `TUNE_TIMEOUT`,
-- discovery kanałów jest scalane po identity; pełny 164-kanałowy snapshot nie może już wymazać programów/godzin z bogatszego chwilowego snapshotu,
-- hover sweep odświeża referencje React DOM i zawsze kontynuuje przez `finally`,
-- ciężki skan EPG przestał być kwadratowy: cursor zamiast `queue.shift()`, `WeakSet` zamiast liniowego `Array.indexOf`, plus krótki budżet globalnego React fallbacku,
-- na cold start lista jest pokazywana natychmiast z lokalnymi logo/programami, a schedule/progress uzupełnia się w miejscu,
-- zachowane: 155 lokalnych PNG, identity-only logo mapping, collision-free numbering, close-before-switch, grey loading cover, chrome suppression i post-commit live-edge check.
-
-Szczegóły: `V0.26_DIW377_RUNTIME_FIX.md` i `TEST_REPORT_v0.26.md`.
+Szczegóły: `V0.27_SWITCH_CLOSE_IDENTITY_PRIORITY.md` i `TEST_REPORT_v0.27.md`.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.26
+cd C:\OrangeSimpleTV-v0.27
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
 
-Build musi potwierdzić:
+Build powinien potwierdzić:
 
 ```text
 assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-Wynik: `C:\OrangeSimpleTV-v0.26\out\OrangeSimpleTV.apk`.
+Wynik: `C:\OrangeSimpleTV-v0.27\out\OrangeSimpleTV.apk`.
 
-Playback, DRM/Widevine, MSE/EME i źródło streamu nadal pozostają własnością oficjalnego playera Orange.
+Playback, DRM/Widevine, MSE/EME i źródło streamu pozostają własnością oficjalnego playera Orange. Aplikacja nie podmienia `video.src` ani MediaKeys.
