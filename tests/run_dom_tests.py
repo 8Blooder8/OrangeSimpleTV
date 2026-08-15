@@ -20,6 +20,7 @@ def main():
         browser = p.chromium.launch(headless=True, executable_path=exe, args=['--no-sandbox'])
         page = browser.new_page(viewport={'width': 1920, 'height': 1080})
 
+        # Channel discovery and activation targeting.
         load(page, 'channels.html')
         discovered = page.evaluate('window.__OSTV.discoverChannels()')
         assert discovered['count'] == 12, discovered
@@ -43,6 +44,36 @@ def main():
         react = page.evaluate("window.__OSTV.activateChannel(['Polsat','Polsat HD'],2)")
         assert react['kind'] == 'REACT_ONCLICK' and page.evaluate('window.__reactClicked') == 1, react
 
+        # Real Orange state-machine regression: /channels may have a valid official
+        # player in mode=background. It must not be classified as a failed tune.
+        load(page, 'background-player.html')
+        background = page.evaluate('window.__OSTV.pageState()')
+        assert background['playerShell'] is False, background
+        assert background['backgroundPlayer'] is True, background
+        assert background['hasVideo'] is True, background
+        assert background['expandAvailable'] is True, background
+
+        expand = page.evaluate('window.__OSTV.playerAction()')
+        assert expand['kind'] == 'TAP_EXPAND', expand
+        assert expand['x'] > 0 and expand['y'] > 0, expand
+
+        # Emulate the result of Android's native MotionEvent on Orange's own
+        # BackgroundToExpanded button, then verify final success stays strict.
+        page.evaluate("""() => {
+          document.getElementById('expand-player').addEventListener('click', () => {
+            document.querySelector('[data-testid="player-container"]').setAttribute('mode','expanded');
+            document.querySelector('[data-testid="base-overlay-container"]').setAttribute('mode','expanded');
+            const pause=document.createElement('div');
+            pause.setAttribute('data-testid','IconPlayerPause');
+            document.body.appendChild(pause);
+          });
+          document.getElementById('expand-player').click();
+        }""")
+        expanded = page.evaluate('window.__OSTV.pageState()')
+        assert expanded['playerShell'] is True and expanded['mode'] == 'expanded', expanded
+        assert page.evaluate('window.__OSTV.playerAction().kind') == 'PLAYING'
+
+        # Existing expanded-player regression remains covered.
         load(page, 'player.html')
         state = page.evaluate('window.__OSTV.pageState()')
         assert state['playerShell'] is True and state['hasVideo'] is True, state
@@ -50,7 +81,7 @@ def main():
         assert action['kind'] == 'PLAYING', action
 
         browser.close()
-    print('PASS: real-snapshot DOM tests')
+    print('PASS: channel activation + background -> expanded Orange player regression')
 
 
 if __name__ == '__main__':
