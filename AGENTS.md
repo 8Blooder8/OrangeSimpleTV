@@ -63,8 +63,9 @@ Do not index or commit APK/build output, SDK caches, Gradle caches, keystores, `
 
 1. The real channel route is `/channels`; obsolete `/live/channels` must not return.
 2. Channels are discovered from `[data-testid="Channel-ChannelWrapper"]`.
-3. A player is open only when `[data-testid="player-container"]` is `mode="expanded"`; existence of `<video>` alone is insufficient.
-4. Preserve official Orange WebView/EME/Widevine playback; no custom DRM/stream extraction.
-5. Prefer deterministic selectors/state checks derived from sanitized real DOM fixtures.
-6. Keep Android runtime code minimal and APK builds fast.
-7. Tests target the exact regression before expanding heuristics.
+3. `[data-testid="player-container"][mode="background"]` is a legitimate Orange intermediate playback state on `/channels`; when `#video-player` and `IconPlayerScroll` are present, use Orange's own expand control instead of retrying channel-click heuristics.
+4. Final tune success still requires `[data-testid="player-container"]` with `mode="expanded"`; existence of `<video>` or `mode="background"` alone is insufficient.
+5. Preserve official Orange WebView/EME/Widevine playback; no custom DRM/stream extraction.
+6. Prefer deterministic selectors/state checks derived from sanitized real DOM fixtures.
+7. Keep Android runtime code minimal and APK builds fast.
+8. Tests target the exact regression before expanding heuristics.
