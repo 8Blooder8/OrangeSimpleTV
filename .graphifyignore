@@ -17,6 +17,19 @@ KANAŁY.htm
 TVP.htm
 Orange TV Go.htm
 
+# FAST CODE-ONLY GRAPH
+# Graphify maps code locally/deterministically through tree-sitter. Markdown/HTML/YAML
+# would enter the semantic/document path and slow routine updates, so keep them out of
+# the always-on graph. Read docs directly only when a task specifically needs them.
+*.md
+*.mdx
+*.html
+*.htm
+*.txt
+*.rst
+*.yaml
+*.yml
+
 # Build/tool output
 out/
 build/
@@ -37,8 +50,7 @@ __pycache__/
 .vscode/
 local.properties
 
-# Generated Graphify visualization/cache: retain only portable/queryable outputs
-# graph.json, GRAPH_REPORT.md and manifest.json stay tracked when generated.
+# Generated Graphify visualization/cache: keep portable query outputs only.
 graphify-out/cache/
 graphify-out/cost.json
 graphify-out/graph.html
