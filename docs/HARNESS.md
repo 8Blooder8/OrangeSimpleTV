@@ -1,74 +1,44 @@
 # OrangeSimpleTV Harness
 
-This repository is optimized for short, repeatable agent iterations. The harness is deliberately split into a fast deterministic path and optional deeper agent/security passes.
+This repository is optimized for fast, repeatable agent-assisted development.
 
-## Fast path — required for every code change
+## Required feedback loop
 
-1. Use Graphify to narrow the affected flow when `graphify-out/graph.json` is available.
-2. Change the smallest possible surface.
-3. Run `./tools/quality-gate.ps1`.
-4. Fix the regression before adding broader heuristics.
-5. Update Graphify incrementally with `./tools/graphify-update.ps1` when the code graph is present.
+1. Use Graphify query-first to narrow the code path.
+2. Make the smallest change that addresses the observed failure.
+3. Run the fast quality gate / DOM tests.
+4. Run DeepSec pattern scan for WebView/bridge/security-sensitive changes.
+5. Build APK locally on the Windows development machine; do not make APK compilation a prerequisite for pure DOM/JS iteration.
+6. Convert every real-device discovery into a mechanical regression test or invariant.
 
-The fast path must stay local, deterministic and cheap. It must not invoke an LLM, build an APK, or contact Orange.
+## Orange TV Go invariants
 
-## Mechanical invariants
+- The live-channel route is `/channels`; never restore `/live/channels`.
+- Channels are discovered from `[data-testid="Channel-ChannelWrapper"]`.
+- The first child of a channel card is its visual `TileWrapper`; channel details/text are outside that tile.
+- **Channel activation is two-phase.** `TileWrapper` owns React `onMouseEnter`/`onMouseLeave`; hover causes React to mount a separate centered channel-control button asynchronously.
+- Never send the tuning tap in the same step that reveals hover state. First reveal, wait for React/WebView commit, then re-query the card and resolve `[data-testid="IconPlayerPlay"]`.
+- The actual tune tap must target the closest real `<button>` containing `IconPlayerPlay`, not the underlying logo/image or `Channel-ChannelWrapper` text area.
+- A real captured tile was 196×140 and the Play button 40×40 with the same center; geometry may scale, so always compute `getBoundingClientRect()` at runtime rather than hard-coding pixels.
+- A valid final player is Orange's official `[data-testid="player-container"]` in `mode="expanded"` with `#video-player`.
+- `mode="background"` is a valid intermediate player state, never final success; when Orange exposes `IconPlayerScroll`, use its own control to reach `expanded`.
+- Preserve the official WebView/EME/Widevine media path. No DRM circumvention, extracted keys, or replacement stream pipeline.
 
-`tests/test_invariants.py` encodes rules that must not regress silently:
+## Login invariants
 
-- channel list route is `/channels`, never the obsolete `/live/channels`;
-- channels are discovered from `[data-testid="Channel-ChannelWrapper"]`;
-- player shell is `[data-testid="player-container"]`;
-- an active player requires `mode="expanded"`;
-- playback video is `#video-player`;
-- real DOM fixtures must not contain obvious session tokens, Cookie/Set-Cookie headers or committed credentials;
-- official Orange playback remains inside the Orange WebView/EME path; no DRM extraction/circumvention is introduced.
+- Orange's login submit can initially be disabled after values are inserted.
+- Set React-controlled inputs through the native value setter and dispatch input/change events.
+- Do not click a disabled submit.
+- Once a submit has actually occurred, never automatically submit a second time merely because a callback/navigation event was missed.
+- Treat disappearance of `login-screen-container` plus authenticated home/navigation/channel DOM as success.
 
-When a real DIW377 failure reveals a new stable fact, add a focused fixture/test/invariant before or together with the fix.
+## Security / corpus rules
 
-## UI QA — Open Interpreter
+Never commit authenticated Orange exports, cookies, tokens, credentials, keystores, APK build outputs, `.deepsec`, Graphify cache, or other private session state. Use sanitized fixtures only.
 
-Open Interpreter is an optional local QA harness, not an APK dependency. Bootstrap once with:
+## Tooling policy
 
-```powershell
-.\tools\openinterpreter-bootstrap.ps1
-```
-
-Then run a verification-only agent pass:
-
-```powershell
-.\tools\openinterpreter-qa.ps1
-```
-
-The project skill at `.agents/skills/orange-tv-qa/SKILL.md` requires snapshot → action → snapshot verification. A reported click is not success until the visible/DOM state changes as expected.
-
-Live Orange QA is opt-in:
-
-```powershell
-.\tools\openinterpreter-qa.ps1 -Live
-```
-
-Live mode may use an already-authenticated session, but must never print, export, commit or inspect cookies, passwords, tokens or Widevine material.
-
-## Security — DeepSec
-
-DeepSec is development tooling only. The default integration runs the local pattern scanner, which does not call an AI model:
-
-```powershell
-.\tools\deepsec-scan.ps1
-```
-
-The first run scaffolds `.deepsec/` locally and installs its workspace dependencies; later scans reuse that workspace and package cache.
-
-GitHub Actions runs the free pattern scan on pull requests and manual dispatch only, so normal push iterations are not slowed down.
-
-AI-backed DeepSec `process`/`revalidate` is intentionally not automatic because it can incur model cost. Run it manually only when explicitly desired and after reviewing the current `.deepsec` configuration.
-
-## Source of truth / entropy control
-
-- `AGENTS.md` is the short navigation and policy entry point.
-- `docs/HARNESS.md` explains the feedback loop.
-- Tests and CI enforce stable facts mechanically.
-- Sanitized fixtures capture only the DOM needed for a regression.
-- Never commit private Orange session exports.
-- Prefer a small explicit selector/state rule over a growing chain of guesses.
+- Graphify: code understanding and path tracing; incremental updates for ordinary edits.
+- Open Interpreter: local QA runner on demand, not automatic paid-model CI.
+- DeepSec: free/pattern scan in PR CI; deeper AI review remains manual.
+- Runtime APK must not depend on any of these development tools.
