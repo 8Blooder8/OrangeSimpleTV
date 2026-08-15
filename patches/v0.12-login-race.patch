@@ -1,0 +1,277 @@
+--- a/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java
++++ b/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java
+@@ -436,66 +436,91 @@
+                 failLogin("Nie udało się automatycznie zalogować. Sprawdź dane i spróbuj ponownie.");
+                 return;
+             }
+-            runLoginScript();
++            if (loginSubmitted) checkAuthenticatedState();
++            else runLoginScript();
+         }
+     };
+ 
+     private void runLoginScript() {
+         String qLogin = JSONObject.quote(pendingLogin);
+         String qSecret = JSONObject.quote(pendingSecret);
+-        String js = "(function(){" +
+-                "function vis(e){if(!e)return false;var s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>2&&r.height>2;}" +
+-                "function txt(e){return ((e.innerText||e.textContent||e.value||'')+'').trim().toLowerCase();}" +
+-                "function fire(e){['input','change','keyup'].forEach(function(n){e.dispatchEvent(new Event(n,{bubbles:true}));});}" +
+-                "function setv(e,v){var p=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');if(p&&p.set)p.set.call(e,v);else e.value=v;fire(e);}" +
+-                "var body=((document.body&&document.body.innerText)||'').toLowerCase();" +
+-                "if(/niepopraw|błędn|bledn|nieprawidł|nieprawidl/.test(body)&&/login|kod|hasł|hasl/.test(body))return 'ERROR_CREDENTIALS';" +
+-                "var inputs=[].slice.call(document.querySelectorAll('input')).filter(vis);" +
+-                "var user=inputs.find(function(e){var a=((e.name||'')+' '+(e.id||'')+' '+(e.placeholder||'')+' '+(e.autocomplete||'')).toLowerCase();return e.type!=='password'&&/login|user|użytk|uzytk|ident|id tv|nazwa/.test(a);});" +
+-                "if(!user)user=inputs.find(function(e){return /text|email|tel|number/.test(e.type||'text');});" +
+-                "var pass=inputs.find(function(e){var a=((e.name||'')+' '+(e.id||'')+' '+(e.placeholder||'')+' '+(e.autocomplete||'')).toLowerCase();return e.type==='password'||/kod|code|pin|hasł|hasl|secret/.test(a);});" +
+-                "if(!pass&&inputs.length>1)pass=inputs.find(function(e){return e!==user;});" +
+-                "if(user&&pass){setv(user," + qLogin + ");setv(pass," + qSecret + ");" +
+-                "var cand=[].slice.call(document.querySelectorAll('button,input[type=submit],a,[role=button]')).filter(vis);" +
+-                "var submit=cand.find(function(e){return /zaloguj|log in|login|dalej|potwierdź|potwierdz/.test(txt(e));});" +
+-                "if(submit){submit.click();return 'SUBMITTED';}if(pass.form){pass.form.submit();return 'SUBMITTED_FORM';}return 'FORM_NO_SUBMIT';}" +
+-                "var authHint=/wyloguj|program tv|telewizja na żywo|telewizja na zywo|ulubione|kanały|kanaly/.test(body);" +
+-                "var landing=/pobierz aplikację|pobierz aplikacje|brak autoryzacji/.test(body);if(authHint&&!landing)return 'AUTH';" +
+-                "var buttons=[].slice.call(document.querySelectorAll('button,a,[role=button]')).filter(vis);" +
+-                "var ok=buttons.find(function(e){return txt(e)==='ok'&&/brak autoryzacji/.test(body);});if(ok)ok.click();" +
+-                "var loginBtn=buttons.find(function(e){return /zaloguj się|zaloguj sie|zaloguj|logowanie|login/.test(txt(e));});" +
+-                "if(loginBtn){loginBtn.click();return 'OPEN_LOGIN';}return 'WAIT';})()";
+-
+-        webView.evaluateJavascript(js, value -> {
+-            if (!loginInProgress) return;
+-            String result = decodeJsScalar(value);
+-            if ("ERROR_CREDENTIALS".equals(result)) { failLogin("Orange odrzucił dane logowania."); return; }
+-            if ("AUTH".equals(result)) { completeLogin(); return; }
+-            if (result.startsWith("SUBMITTED")) {
++
++        // Niezależny watchdog: jeśli evaluateJavascript zgubi callback podczas
++        // przejścia React/SPA, następna próba i tak wystartuje.
++        scheduleLoginAutomation(1200);
++
++        evalBridge("window.__OSTV.loginStep(" + qLogin + "," + qSecret + ")", json -> {
++            if (!loginInProgress || loginSubmitted) return;
++            JSONObject result = parseObject(json);
++            String kind = result.optString("kind", "WAIT");
++
++            if ("BAD".equals(kind)) {
++                failLogin("Orange odrzucił dane logowania.");
++                return;
++            }
++            if ("AUTH".equals(kind)) {
++                completeLogin();
++                return;
++            }
++            if ("FIELDS_SET".equals(kind)) {
++                loginStatus.setTextColor(Color.LTGRAY);
++                loginStatus.setText("Dane wpisane. Czekam na aktywację logowania…");
++                scheduleLoginAutomation(220);
++                return;
++            }
++            if ("SUBMITTED".equals(kind)) {
+                 loginSubmitted = true;
++                loginStatus.setTextColor(Color.LTGRAY);
+                 loginStatus.setText("Dane wysłane. Czekam na autoryzację…");
+                 secretEdit.setText("");
+-            } else if ("OPEN_LOGIN".equals(result)) {
++                // Nie submituj ponownie. Od tej chwili wyłącznie obserwujemy
++                // przejście login-screen -> home/navigation/channel cards.
++                scheduleLoginAutomation(320);
++                return;
++            }
++            if ("FORM_WAIT".equals(kind)) {
++                loginStatus.setTextColor(Color.LTGRAY);
++                loginStatus.setText("Przygotowuję formularz Orange…");
++                scheduleLoginAutomation(250);
++                return;
++            }
++            if ("OPEN_LOGIN".equals(kind)) {
++                loginStatus.setTextColor(Color.LTGRAY);
+                 loginStatus.setText("Otwieram formularz logowania Orange…");
++                scheduleLoginAutomation(350);
++                return;
+             }
+-            if (loginSubmitted) checkAuthenticatedState(); else scheduleLoginAutomation(900);
++            scheduleLoginAutomation(500);
+         });
+     }
+ 
+     private void checkAuthenticatedState() {
+-        String js = "(function(){function vis(e){if(!e)return false;var s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>2&&r.height>2;}" +
+-                "var t=((document.body&&document.body.innerText)||'').toLowerCase();var inputs=[].slice.call(document.querySelectorAll('input')).filter(vis);" +
+-                "var loginForm=inputs.some(function(e){var a=((e.name||'')+' '+(e.id||'')+' '+(e.placeholder||'')).toLowerCase();return e.type==='password'||/login|kod|hasł|hasl/.test(a);});" +
+-                "var bad=/niepopraw|błędn|bledn|nieprawidł|nieprawidl/.test(t)&&/login|kod|hasł|hasl/.test(t);" +
+-                "var good=/wyloguj|program tv|telewizja na żywo|telewizja na zywo|ulubione|kanały|kanaly/.test(t);" +
+-                "var landing=/pobierz aplikację|pobierz aplikacje|brak autoryzacji/.test(t);" +
+-                "if(bad)return 'BAD';if(good&&!loginForm&&!landing)return 'GOOD';if(loginForm)return 'FORM';return 'UNKNOWN';})()";
+-        webView.evaluateJavascript(js, value -> {
+-            if (!loginInProgress) return;
+-            String result = decodeJsScalar(value);
+-            if ("BAD".equals(result)) failLogin("Orange odrzucił dane logowania.");
+-            else if ("GOOD".equals(result)) completeLogin();
+-            else scheduleLoginAutomation(1000);
++        // Zabezpieczenie przed utratą callbacku podczas SPA/hydration.
++        // Kolejny probe jest zaplanowany ZANIM wykonamy evaluateJavascript.
++        scheduleLoginAutomation(650);
++
++        evalBridge("window.__OSTV.loginState()", json -> {
++            if (!loginInProgress || !loginSubmitted) return;
++            JSONObject state = parseObject(json);
++            String kind = state.optString("kind", "WAIT");
++
++            if ("BAD".equals(kind)) {
++                failLogin("Orange odrzucił dane logowania.");
++                return;
++            }
++            if ("AUTH".equals(kind)) {
++                completeLogin();
++                return;
++            }
++
++            if ("FORM".equals(kind)) {
++                loginStatus.setTextColor(Color.LTGRAY);
++                loginStatus.setText("Dane wysłane. Orange kończy autoryzację…");
++            } else {
++                loginStatus.setTextColor(Color.LTGRAY);
++                loginStatus.setText("Dane wysłane. Czekam na autoryzację…");
++            }
++            scheduleLoginAutomation(420);
+         });
+     }
+ 
+--- a/app/src/main/assets/orange_bridge.js
++++ b/app/src/main/assets/orange_bridge.js
+@@ -1,6 +1,6 @@
+ (function () {
+   'use strict';
+-  if (window.__OSTV && window.__OSTV.version >= 11) return;
++  if (window.__OSTV && window.__OSTV.version >= 12) return;
+ 
+   var CHANNEL_CARD = '[data-testid="Channel-ChannelWrapper"]';
+   var PLAYER_CONTAINER = '[data-testid="player-container"]';
+@@ -393,6 +393,134 @@
+     return { kind: 'WAIT', debug: 'expanded-without-video' };
+   }
+ 
++  function loginState() {
++    var body = String((document.body && document.body.innerText) || '').toLowerCase();
++    var loginScreen = !!document.querySelector('[data-testid="login-screen-container"]');
++    var username = document.querySelector('input[name="username"]');
++    var code = document.querySelector('input[name="code"], input[type="password"]');
++    var submit = document.querySelector('[data-testid="button-submit-login"], button[type="submit"], input[type="submit"]');
++    var home = !!document.querySelector('[data-testid="home-screen-container"]');
++    var navigation = !!document.querySelector('[data-testid="navigation-container"]');
++    var app = !!document.querySelector('[data-testid="app-container"]');
++    var cards = document.querySelectorAll(CHANNEL_CARD).length;
++    var bad = /niepopraw|błędn|bledn|nieprawidł|nieprawidl/.test(body) &&
++              /login|kod|hasł|hasl|użytk|uzytk/.test(body);
++
++    if (bad) {
++      return {kind:'BAD', loginScreen:loginScreen, home:home, navigation:navigation, cards:cards};
++    }
++
++    if (!loginScreen && !username && !code && (home || cards > 0 || (navigation && app))) {
++      return {kind:'AUTH', loginScreen:false, home:home, navigation:navigation, cards:cards};
++    }
++
++    if (loginScreen || username || code) {
++      return {
++        kind:'FORM',
++        loginScreen:loginScreen,
++        username:!!username,
++        code:!!code,
++        submit:!!submit,
++        submitDisabled:!!(submit && (submit.disabled || submit.getAttribute('aria-disabled') === 'true')),
++        cards:cards
++      };
++    }
++
++    return {kind:'WAIT', loginScreen:false, home:home, navigation:navigation, cards:cards};
++  }
++
++  function setReactInputValue(input, value) {
++    if (!input) return false;
++    value = String(value == null ? '' : value);
++    try {
++      var descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
++      if (descriptor && descriptor.set) descriptor.set.call(input, value);
++      else input.value = value;
++      try {
++        input.dispatchEvent(new InputEvent('input', {
++          bubbles:true, cancelable:false, composed:true,
++          inputType:'insertText', data:null
++        }));
++      } catch (_) {
++        input.dispatchEvent(new Event('input', {bubbles:true, composed:true}));
++      }
++      input.dispatchEvent(new Event('change', {bubbles:true, composed:true}));
++      return input.value === value;
++    } catch (_) {
++      try {
++        input.value = value;
++        input.dispatchEvent(new Event('input', {bubbles:true}));
++        input.dispatchEvent(new Event('change', {bubbles:true}));
++        return input.value === value;
++      } catch (__) {
++        return false;
++      }
++    }
++  }
++
++  function loginStep(usernameValue, codeValue) {
++    var state = loginState();
++    if (state.kind === 'AUTH' || state.kind === 'BAD') return state;
++
++    var loginScreen = document.querySelector('[data-testid="login-screen-container"]');
++    if (!loginScreen) return {kind:'FORM_WAIT', debug:'login-screen-not-ready'};
++
++    var inputs = [].slice.call(loginScreen.querySelectorAll('input'));
++    var username = loginScreen.querySelector('input[name="username"]') ||
++      inputs.find(function (e) {
++        var a = String((e.name || '') + ' ' + (e.id || '') + ' ' + (e.placeholder || '')).toLowerCase();
++        return e.type !== 'password' && /login|user|użytk|uzytk|nazwa|ident/.test(a);
++      });
++    var code = loginScreen.querySelector('input[name="code"]') ||
++      inputs.find(function (e) {
++        var a = String((e.name || '') + ' ' + (e.id || '') + ' ' + (e.placeholder || '')).toLowerCase();
++        return e.type === 'password' || /kod|code|pin|hasł|hasl|secret/.test(a);
++      });
++
++    if (!username || !code) return {kind:'FORM_WAIT', debug:'inputs-not-ready'};
++
++    var changed = false;
++    if (String(username.value || '') !== String(usernameValue || '')) changed = setReactInputValue(username, usernameValue) || changed;
++    if (String(code.value || '') !== String(codeValue || '')) changed = setReactInputValue(code, codeValue) || changed;
++
++    var submit = loginScreen.querySelector('[data-testid="button-submit-login"]') ||
++      loginScreen.querySelector('button[type="submit"], input[type="submit"]');
++    if (!submit) return {kind:'FORM_WAIT', debug:'submit-not-ready'};
++
++    if (submit.disabled || submit.getAttribute('aria-disabled') === 'true') {
++      return {
++        kind:'FIELDS_SET', debug:'submit-disabled', changed:changed,
++        usernameLength:String(username.value || '').length,
++        codeLength:String(code.value || '').length
++      };
++    }
++
++    try {
++      submit.click();
++      return {kind:'SUBMITTED', debug:'enabled-submit-click'};
++    } catch (e) {
++      return {kind:'FORM_WAIT', debug:'submit-error:' + String(e)};
++    }
++  }
++
+@@ -509,13 +637,15 @@
+   window.__OSTV = {
+-    version: 11,
++    version: 12,
+     normalize: norm,
+     canonicalChannel: canonicalChannel,
+     discoverChannels: discoverChannels,
+     bestChannel: bestChannel,
+     inspectChannel: inspectChannel,
+     activateChannel: activateChannel,
++    loginState: loginState,
++    loginStep: loginStep,
+     pageState: pageState,
+     playerAction: playerAction,
