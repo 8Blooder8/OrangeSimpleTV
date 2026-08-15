@@ -1,0 +1,22 @@
+name: DOM tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install test dependency
+        run: pip install playwright
+      - name: Locate preinstalled Chrome
+        run: |
+          which google-chrome || which google-chrome-stable || which chromium
+      - name: Run DOM tests
+        run: python tests/run_dom_tests.py
