@@ -1,19 +1,22 @@
-# Orange Simple TV v0.17
+# Orange Simple TV v0.18
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Sagemcom Orange 4K Multi (DIW377).
 
-## v0.17
+## v0.18 — TV UI + szybkie przełączanie
 
-Ta gałąź przebudowuje strojenie kanału wokół jednej sesji `tuneSessionId` i rozdziela aktywację kanału od uruchomienia mediów.
+- lista kanałów pokazuje numer, logo, nazwę i aktualny program,
+- `CH+` wybiera następny kanał w dół listy, `CH-` poprzedni w górę,
+- normalna zmiana kanału nie przeładowuje całej strony `/channels`, jeśli Orange nadal ma listę kanałów w DOM,
+- istniejący player jest sprowadzany do trybu background i następny kanał jest aktywowany w tej samej, rozgrzanej instancji WebView,
+- bridge JS jest instalowany raz na dokument zamiast przy każdym pollu strojenia,
+- ciężka macierz EME/Widevine jest lazy i uruchamia się dopiero przy realnym zastoju mediów,
+- potwierdzenie renderowania po pierwszej rzeczywistej klatce skrócono z 650 ms do 120 ms,
+- na czystej instalacji pomijany jest zbędny session probe `/channels`, a formularz logowania jest preładowywany w tle,
+- discovery kanałów nie ma sztucznego minimum 1,8 s,
+- podczas strojenia użytkownik widzi tylko szare tło, spinner i `Ładowanie…`, bez technicznych etapów WebView/DRM,
+- obraz nowego kanału jest odsłaniany dopiero po potwierdzonym renderze,
+- diagnostyka v0.17 pozostaje dostępna poza hot-pathem.
 
-- stare callbacki JS/page lifecycle są ignorowane po zmianie sesji,
-- błąd terminalny naprawdę zatrzymuje automat strojenia,
-- po wykryciu playera Orange kanał nie jest ponownie klikany,
-- brak ogólnego „recovery wszystkiego”: UA jest używany tylko przed aktywacją playera, gdy problem może dotyczyć zgodności strony,
-- Widevine jest sprawdzany niezależnie po stronie Android `MediaDrm` i WebView EME,
-- EME jest diagnozowane macierzą codec/robustness zamiast pojedynczego `WV=rejected`,
-- podczas diagnozy aplikacja nie wywołuje bezpośrednio `video.play()`, `video.load()`, nie podmienia `src` ani MediaKeys,
-- terminalna awaria zapisuje pełny, sanitizowany JSON diagnostyczny,
-- szybki build bez Gradle pozostaje: AAPT2 → javac → D8 → zipalign → apksigner.
+Playback pozostaje po stronie oficjalnego playera Orange/WebView. Nie implementujemy własnego DRM ani nie podmieniamy `src`/MediaKeys.
 
-Pełna paczka źródłowa v0.17 jest budowana/testowana lokalnie; ta gałąź przechowuje dokumentację i kluczowe zmiany diagnostyczne. Nie commitujemy zapisanych HTML-i Orange, cookies, tokenów ani danych sesji.
+Szybki build bez Gradle pozostaje: AAPT2 → javac → D8 → zipalign → apksigner.
