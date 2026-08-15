@@ -1,0 +1,73 @@
+--- a/app/src/main/assets/orange_bridge.js
++++ b/app/src/main/assets/orange_bridge.js
+@@
+   function channelTarget(card) {
+     if (!card) return null;
+-    var img = card.querySelector('img[alt]');
+-    if (img && visible(img)) return img;
+-    var first = card.firstElementChild;
+-    if (first && visible(first)) return first;
++    // Real Orange UI: Channel-ChannelWrapper contains TileWrapper first and
++    // ChannelDetails below it. The actual Play hit-zone is the geometric
++    // CENTER OF TileWrapper, not the logo image or the text/details area.
++    var tile = card.firstElementChild;
++    if (tile && visible(tile)) return tile;
+     return card;
+   }
++
++  function primeChannelTile(target) {
++    if (!target) return { ok: false, debug: 'no-tile' };
++    var r = rectOf(target);
++    if (!r) return { ok: false, debug: 'no-tile-rect' };
++    var x = (r.left + r.right) / 2, y = (r.top + r.bottom) / 2;
++    var fired = [];
++
++    // Orange reveals the centered Play control when the tile is hovered /
++    // focused. Do this BEFORE Android sends the real MotionEvent. React gets
++    // a complete hover transition and the following native tap lands in the
++    // exact same center where the Play overlay is rendered.
++    ['pointerover','pointerenter','mouseover','mouseenter','mousemove'].forEach(function (type) {
++      try { target.dispatchEvent(makeMouseEvent(type, x, y)); fired.push(type); } catch (_) {}
++    });
++    try {
++      var hadTabIndex = target.hasAttribute('tabindex');
++      var oldTabIndex = target.getAttribute('tabindex');
++      if (!hadTabIndex) target.setAttribute('tabindex', '-1');
++      if (typeof target.focus === 'function') {
++        try { target.focus({ preventScroll: true }); }
++        catch (_) { target.focus(); }
++      }
++      if (!hadTabIndex) target.removeAttribute('tabindex');
++      else target.setAttribute('tabindex', oldTabIndex);
++    } catch (_) {}
++
++    return { ok: true, x: x, y: y, debug: 'tile-center; hover=' + fired.join(',') };
++  }
+@@
+   function activateChannel(names, attempt) {
+@@
+     var target = channelTarget(card);
+     if (!target) return { kind: 'NOT_FOUND', debug: 'no-target:' + found.name };
+     var r = rectOf(target);
+     if (!r) return { kind: 'NOT_FOUND', debug: 'no-target-rect:' + found.name };
+     if (attempt === 0) {
+-      return { kind: 'NATIVE_TAP', x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2, vw: innerWidth, vh: innerHeight, debug: found.name + '; target=' + nodeDebug(target) };
++      var primed = primeChannelTile(target);
++      return {
++        kind: 'NATIVE_TAP',
++        x: primed.ok ? primed.x : (r.left + r.right) / 2,
++        y: primed.ok ? primed.y : (r.top + r.bottom) / 2,
++        vw: innerWidth,
++        vh: innerHeight,
++        debug: found.name + '; target=' + nodeDebug(target) + '; ' + primed.debug
++      };
+     }
+@@
+   function bestChannel(names) {
+@@
+     var r = rectOf(target);
+-    return r ? { kind: 'TAP', x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2, vw: innerWidth, vh: innerHeight, debug: found.name + '; target=' + nodeDebug(target) }
++    var primed = r ? primeChannelTile(target) : null;
++    return r ? { kind: 'TAP', x: primed && primed.ok ? primed.x : (r.left + r.right) / 2, y: primed && primed.ok ? primed.y : (r.top + r.bottom) / 2, vw: innerWidth, vh: innerHeight, debug: found.name + '; target=' + nodeDebug(target) + '; ' + (primed ? primed.debug : '') }
+              : { kind: 'NOT_FOUND', debug: 'no-target-rect:' + found.name };
+   }
