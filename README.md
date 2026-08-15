@@ -1,19 +1,64 @@
-# Orange Simple TV v0.19
+# Orange Simple TV v0.20
 
-## v0.19 — guide overlay + performance
+Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Sagemcom Orange 4K Multi (DIW377), z pełnym trybem podglądu UI na emulatorze/BlueStacks.
 
-- nowy interfejs TV: lista po lewej, duży placeholder/podgląd i karta programu po prawej, bez dolnej legendy,
-- po BACK z działającego kanału lista otwiera się wyłącznie jako boczny overlay; video dalej działa pełnoekranowo i nie jest resizeowane,
-- OK podczas oglądania pokazuje własną kartę kanału/programu,
-- emulator automatycznie używa pełnoekranowego placeholdera video, więc cały UX można testować bez Widevine,
-- loga nie mają ciemnego prostokątnego tła,
-- metadane kanałów są cacheowane i pojawiają się natychmiast przy kolejnym wejściu, po czym są odświeżane w tle,
-- loga mają cache RAM + dyskowy i 6 równoległych workerów,
-- aktualny kanał i pierwsze 24 loga mają priorytet, reszta jest prefetchowana chwilę później,
-- zachowany jest v0.18 warm switch bez przeładowania `/channels`,
-- skrócony jest reveal Play i fallback rozpoznawania nowego playera,
-- techniczne stany DRM/WebView pozostają poza normalnym UI.
+## v0.20 — reference UI + eager EPG/logo prefetch
 
-Playback/DRM pozostaje własnością oficjalnego playera Orange.
+Ta wersja koncentruje się na interfejsie TV odwzorowanym według referencyjnego ekranu oraz usunięciu opóźnień widocznych przy otwieraniu listy kanałów.
 
-Szybki build bez Gradle pozostaje: AAPT2 → javac → D8 → zipalign → apksigner.
+### Interfejs
+
+- ekran `Kanały`: lista po lewej, duży podgląd po prawej i karta bieżącego programu pod podglądem,
+- bez dolnej legendy, kolorowych skrótów, Wi‑Fi i ustawień,
+- każdy wiersz zawiera numer kanału, logo, nazwę, aktualny program, godziny i lokalnie aktualizowany pasek postępu,
+- zaznaczenie kanału używa ciemnego gradientu i cienkiej pomarańczowej ramki,
+- prawa karta pokazuje logo, numer/nazwę kanału, program, godziny, progress, opis (jeżeli Orange go udostępnia), aktualną godzinę i czas do końca,
+- `BACK` podczas oglądania nakłada wyłącznie lewy panel kanałów nad pełnoekranowym playerem — bez zmiany geometrii, rozdzielczości lub stanu video,
+- `OK` podczas oglądania pokazuje własną kartę programu zamiast interfejsu Orange.
+
+### Eager logo/EPG i cache
+
+- bridge zbiera `src`, `currentSrc`, `srcset`, `data-src`, `data-srcset`, `picture/source` i `background-image`,
+- `MutationObserver` zapamiętuje URL logo, gdy React zamontuje obraz,
+- brakujące kafelki są krótko aktywowane w ukrytym sweepie, po czym pozycja strony jest przywracana,
+- loga mają cache RAM + dyskowy i są prefetchowane przez ograniczony pool 6 workerów,
+- wiersze czekające na bitmapę są aktualizowane bez aktywnego pollingu,
+- lista/EPG działa stale-while-revalidate: cache jest rysowany natychmiast, a świeże dane podmieniane w tle,
+- progress i czas do końca są aktualizowane lokalnie co 30 sekund bez ponownego pobierania EPG.
+
+### Performance
+
+- bridge JavaScript jest instalowany raz na dokument,
+- normalny `CH+`/`CH-` zachowuje rozgrzany WebView i nie wykonuje reloadu `/channels`,
+- pełna diagnostyka EME/Widevine nie działa w normalnym hot-path,
+- pobieranie/dekodowanie logo i operacje cache nie blokują UI thread,
+- focus listy korzysta z danych już obecnych w pamięci.
+
+### BlueStacks / emulator
+
+Brak Widevine nie blokuje testów interfejsu. W wykrytym emulatorze kanał jest reprezentowany pełnoekranowym placeholderem, a cały flow UI działa jak na telewizorze.
+
+Klawiatura:
+
+- `↑` / `↓` — focus kanału,
+- `Enter` — OK,
+- `Esc` lub `Backspace` — BACK,
+- `Page Down` — CH+ (następny kanał w dół),
+- `Page Up` — CH− (poprzedni kanał w górę),
+- `Space` — Play/Pause,
+- `0–9` — numer kanału,
+- `Home` / `End` — pierwszy / ostatni kanał.
+
+Playback, DRM, MSE/EME i źródło streamu pozostają własnością oficjalnego playera Orange. v0.20 nie podmienia `src`, MediaKeys ani nie implementuje własnego Widevine.
+
+## Windows build
+
+```powershell
+cd C:\OrangeSimpleTV-v0.20
+Set-ExecutionPolicy -Scope Process Bypass
+.\build_windows.ps1
+```
+
+Wynik: `C:\OrangeSimpleTV-v0.20\out\OrangeSimpleTV.apk`.
+
+Build pozostaje bez Gradle: AAPT2 → javac → D8 → zipalign → apksigner.
