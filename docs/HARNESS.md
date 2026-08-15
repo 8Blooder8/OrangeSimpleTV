@@ -23,9 +23,16 @@ This repository is optimized for fast, repeatable agent-assisted development.
 - A valid player shell is Orange's official `[data-testid="player-container"]` in `mode="expanded"` with `#video-player`.
 - **`mode="expanded"` and `IconPlayerPause` are not proof that video is visible.** Real runtime traces show an expanded player can exist while `readyState=0`, decoded size is `0x0`, and no frame has been presented.
 - Final tune success requires rendered-video evidence: decoded size > 0, `readyState >= 2`, not paused/ended, plus a recent render/progress signal (`requestVideoFrameCallback`, playback-quality frames, or forward `currentTime` progress) held stable briefly.
+- **Never hammer `video.play()` while `readyState == 0` or Orange has not attached a usable MSE/EME media source.** Real playback attaches the blob source asynchronously after the expanded shell appears.
 - `mode="background"` is a valid intermediate player state, never final success; when Orange exposes `IconPlayerScroll`, use its own control to reach `expanded`.
 - **Clean-player mode is non-invasive.** Never resize/reposition `#video-player`, its DRM-owned container, or `#player-wrapper`; hide Orange controls with opacity/pointer-events only and keep React/player nodes mounted.
-- Android `onShowCustomView()` is not a tune-success signal; keep the native loading cover until rendered-video proof is available.
+- Android `onShowCustomView()` is not a tune-success signal.
+- **Do not keep a full-screen opaque native loading View over an initialized Orange player shell.** Some TV compositor/WebView paths may stop or starve the video surface when it is completely occluded; keep only a small transparent-overlay status label while media initializes.
+- The Activity/window must remain hardware accelerated and WebView must not be forced to `LAYER_TYPE_SOFTWARE`; use the normal compositor path (`LAYER_TYPE_NONE`).
+- WebView media compatibility must be diagnosed independently from Android native DRM: record active WebView provider/version, EME API presence, MSE codec support, Widevine key-system access and native `MediaDrm.isCryptoSchemeSupported()`.
+- Grant only `PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID`, and only to trusted Orange origins. Never grant all future WebView permission resources wholesale.
+- A fixed fake browser version is not a permanent compatibility solution. Prefer a UA derived from the real WebView Chromium version and use bounded fallback profiles; persist the profile that actually renders video.
+- Recovery is bounded and ordered: soft wake -> alternate UA profiles -> cache refresh without deleting cookies -> fresh WebView instance -> terminal diagnostic. It must never loop forever.
 - Preserve the official WebView/EME/Widevine media path. No DRM circumvention, extracted keys, or replacement stream pipeline.
 
 ## Login invariants
