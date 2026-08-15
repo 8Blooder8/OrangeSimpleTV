@@ -1,0 +1,77 @@
+name: Graphify code graph
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'work/**'
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'AGENTS.md'
+      - '.graphifyignore'
+      - '.github/workflows/graphify-code.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'AGENTS.md'
+      - '.graphifyignore'
+
+concurrency:
+  group: graphify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  graph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-graphify-${{ runner.os }}-${{ hashFiles('.graphifyignore', 'app/**', 'tests/**', 'tools/**') }}
+          restore-keys: |
+            uv-graphify-${{ runner.os }}-
+
+      - name: Install uv
+        run: python -m pip install --disable-pip-version-check -q uv
+
+      - name: Build Graphify code graph
+        run: uvx --from graphifyy graphify . --no-viz
+
+      - name: Sanity-check graph
+        run: |
+          test -s graphify-out/graph.json
+          test -s graphify-out/GRAPH_REPORT.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('graphify-out/graph.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          nodes = data.get('nodes', []) if isinstance(data, dict) else []
+          print(f'Graphify nodes: {len(nodes)}')
+          if not nodes:
+              raise SystemExit('Graphify produced an empty graph')
+          PY
+
+      - name: Upload graph artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphify-out-${{ github.sha }}
+          path: |
+            graphify-out/graph.json
+            graphify-out/GRAPH_REPORT.md
+            graphify-out/manifest.json
+          if-no-files-found: error
+          retention-days: 14
