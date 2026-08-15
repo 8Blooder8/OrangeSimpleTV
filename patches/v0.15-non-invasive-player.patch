@@ -1,0 +1,442 @@
+--- _v014/OrangeSimpleTV-v0.14/app/src/main/assets/orange_bridge.js	2026-08-15 15:36:38.000000000 +0000
++++ OrangeSimpleTV-v0.15/app/src/main/assets/orange_bridge.js	2026-08-15 16:02:29.524924439 +0000
+@@ -1,6 +1,6 @@
+ (function () {
+   'use strict';
+-  if (window.__OSTV && window.__OSTV.version >= 14) return;
++  if (window.__OSTV && window.__OSTV.version >= 15) return;
+ 
+   var CHANNEL_CARD = '[data-testid="Channel-ChannelWrapper"]';
+   var PLAYER_CONTAINER = '[data-testid="player-container"]';
+@@ -385,6 +385,143 @@
+     return { kind:'REVEAL_PLAY', x:primed.ok ? primed.x : (r.left+r.right)/2, y:primed.ok ? primed.y : (r.top+r.bottom)/2, vw:innerWidth, vh:innerHeight, debug:found.name + '; target=' + nodeDebug(target) + '; ' + primed.debug };
+   }
+ 
++
++  var videoProbe = {
++    video: null,
++    frameCount: 0,
++    lastFrameAt: 0,
++    lastTime: null,
++    lastProgressAt: 0,
++    stableSince: 0,
++    rvfcSupported: false,
++    rvfcArmed: false,
++    qualityFrames: 0
++  };
++
++  function resetVideoProbe(video) {
++    videoProbe.video = video || null;
++    videoProbe.frameCount = 0;
++    videoProbe.lastFrameAt = 0;
++    videoProbe.lastTime = null;
++    videoProbe.lastProgressAt = 0;
++    videoProbe.stableSince = 0;
++    videoProbe.rvfcSupported = false;
++    videoProbe.rvfcArmed = false;
++    videoProbe.qualityFrames = 0;
++
++    if (!video) return;
++
++    try {
++      videoProbe.rvfcSupported = typeof video.requestVideoFrameCallback === 'function';
++    } catch (_) {}
++
++    if (videoProbe.rvfcSupported) {
++      videoProbe.rvfcArmed = true;
++
++      var onFrame = function (_, meta) {
++        if (videoProbe.video !== video) return;
++
++        videoProbe.frameCount++;
++        videoProbe.lastFrameAt = performance.now();
++
++        try {
++          if (meta && Number(meta.presentedFrames || 0) > videoProbe.qualityFrames) {
++            videoProbe.qualityFrames = Number(meta.presentedFrames || 0);
++          }
++        } catch (_) {}
++
++        try {
++          video.requestVideoFrameCallback(onFrame);
++        } catch (_) {
++          videoProbe.rvfcArmed = false;
++        }
++      };
++
++      try {
++        video.requestVideoFrameCallback(onFrame);
++      } catch (_) {
++        videoProbe.rvfcSupported = false;
++        videoProbe.rvfcArmed = false;
++      }
++    }
++  }
++
++  function videoRenderState() {
++    var p = playerElements();
++    var v = p.video;
++
++    if (v !== videoProbe.video) resetVideoProbe(v);
++
++    var now = performance.now();
++    var readyState = 0, currentTime = 0, width = 0, height = 0;
++    var paused = true, ended = false, qualityFrames = videoProbe.qualityFrames;
++
++    if (v) {
++      try { readyState = Number(v.readyState || 0); } catch (_) {}
++      try { currentTime = Number(v.currentTime || 0); } catch (_) {}
++      try {
++        width = Number(v.videoWidth || 0);
++        height = Number(v.videoHeight || 0);
++      } catch (_) {}
++      try {
++        paused = !!v.paused;
++        ended = !!v.ended;
++      } catch (_) {}
++      try {
++        if (typeof v.getVideoPlaybackQuality === 'function') {
++          var q = v.getVideoPlaybackQuality();
++          qualityFrames = Math.max(qualityFrames, Number(q && q.totalVideoFrames || 0));
++        }
++      } catch (_) {}
++    }
++
++    if (v && videoProbe.lastTime !== null && currentTime > videoProbe.lastTime + 0.02) {
++      videoProbe.lastProgressAt = now;
++    }
++    if (v) videoProbe.lastTime = currentTime;
++
++    var expanded = !!(p.container && p.mode === 'expanded');
++    var basic = !!(
++      expanded &&
++      v &&
++      !paused &&
++      !ended &&
++      readyState >= 2 &&
++      width > 0 &&
++      height > 0
++    );
++
++    var frameFresh = videoProbe.frameCount > 0 && (now - videoProbe.lastFrameAt) < 3000;
++    var qualitySignal = qualityFrames > 0;
++    var timeSignal = videoProbe.lastProgressAt > 0 && (now - videoProbe.lastProgressAt) < 2200;
++    var rendered = !!(frameFresh || qualitySignal || timeSignal);
++
++    if (basic && rendered) {
++      if (!videoProbe.stableSince) videoProbe.stableSince = now;
++    } else {
++      videoProbe.stableSince = 0;
++    }
++
++    var stableMs = videoProbe.stableSince ? (now - videoProbe.stableSince) : 0;
++
++    return {
++      basic: basic,
++      rendered: rendered,
++      stable: !!(basic && rendered && stableMs >= 650),
++      stableMs: Math.round(stableMs),
++      readyState: readyState,
++      currentTime: currentTime,
++      width: width,
++      height: height,
++      paused: paused,
++      ended: ended,
++      frameCount: videoProbe.frameCount,
++      qualityFrames: qualityFrames,
++      timeProgress: timeSignal,
++      renderSignal: frameFresh ? 'rvfc' : (qualitySignal ? 'quality' : (timeSignal ? 'time' : 'none'))
++    };
++  }
++
+   function playerElements() {
+     var container = document.querySelector(PLAYER_CONTAINER);
+     var video = document.querySelector(PLAYER_VIDEO);
+@@ -408,22 +545,31 @@
+     var expanded = !!(p.container && p.mode === 'expanded');
+     var background = !!(p.container && p.mode === 'background');
+     var hasBlob = !!(p.video && /^blob:https:\/\/tvgo\.orange\.pl\//i.test(String(p.video.getAttribute('src') || p.video.src || '')));
+-    var playing = false;
+-    if (p.video) {
+-      try { playing = (!p.video.paused && !p.video.ended && (p.video.readyState >= 2 || p.video.currentTime > 0)); } catch (_) {}
+-    }
+-    if (expanded && p.pauseIcon) playing = true;
++    var render = videoRenderState();
++
+     return {
+       href: location.href,
+-      // Final success still requires expanded. Orange uses background as a real intermediate
+-      // state on /channels, so expose it separately instead of treating it as a failure.
+       playerShell: expanded,
+       hasPlayerContainer: !!p.container,
+       backgroundPlayer: background,
+       mode: p.mode,
+       hasVideo: !!p.video,
+       hasBlob: hasBlob,
+-      playing: playing,
++
++      // v0.15: success means proven rendered playback, not merely a Pause icon.
++      playing: render.stable,
++      videoBasicReady: render.basic,
++      videoRendered: render.rendered,
++      videoStableMs: render.stableMs,
++      videoReadyState: render.readyState,
++      videoCurrentTime: render.currentTime,
++      videoWidth: render.width,
++      videoHeight: render.height,
++      videoPaused: render.paused,
++      renderedFrames: render.frameCount,
++      qualityFrames: render.qualityFrames,
++      renderSignal: render.renderSignal,
++
+       hasPauseIcon: !!p.pauseIcon,
+       hasPlayIcon: !!p.playIcon,
+       expandAvailable: !!(background && p.expandIcon),
+@@ -435,32 +581,68 @@
+     var state = pageState();
+     var p = playerElements();
+ 
+-    // Real Orange /channels snapshot: selecting/watching a channel can leave the official
+-    // player in mode=background. The supported way to reach the normal TV player is the
+-    // Orange control with IconPlayerScroll. Ask Android to perform a real native tap on it.
+     if (state.backgroundPlayer) {
+       if (p.expandIcon) {
+         var expandTarget = buttonAncestor(p.expandIcon);
+         if (expandTarget && visible(expandTarget)) {
+           var er = rectOf(expandTarget);
+-          return { kind: 'TAP_EXPAND', x: (er.left + er.right) / 2, y: (er.top + er.bottom) / 2, vw: innerWidth, vh: innerHeight, debug: 'background->expanded via IconPlayerScroll' };
++          return {
++            kind: 'TAP_EXPAND',
++            x: (er.left + er.right) / 2,
++            y: (er.top + er.bottom) / 2,
++            vw: innerWidth,
++            vh: innerHeight,
++            debug: 'background->expanded via IconPlayerScroll'
++          };
+         }
+         return { kind: 'WAIT', debug: 'background; IconPlayerScroll not visible' };
+       }
+       return { kind: 'WAIT', debug: 'background; no IconPlayerScroll' };
+     }
+ 
+-    if (!state.playerShell) return { kind: 'NOT_PLAYER', debug: 'mode=' + state.mode + '; cards=' + state.channelCards };
+-    if (state.playing) return { kind: 'PLAYING', debug: 'expanded; pause=' + state.hasPauseIcon + '; blob=' + state.hasBlob };
++    if (!state.playerShell) {
++      return { kind: 'NOT_PLAYER', debug: 'mode=' + state.mode + '; cards=' + state.channelCards };
++    }
++
++    // Only finish tuning after real render progress has been proven and stable.
++    if (state.playing) {
++      return {
++        kind: 'PLAYING',
++        debug: 'rendered; signal=' + state.renderSignal +
++          '; ready=' + state.videoReadyState +
++          '; size=' + state.videoWidth + 'x' + state.videoHeight +
++          '; frames=' + state.renderedFrames +
++          '; quality=' + state.qualityFrames +
++          '; stableMs=' + state.videoStableMs
++      };
++    }
+ 
+-    if (p.playIcon) {
++    if (p.playIcon && state.videoPaused) {
+       var target = buttonAncestor(p.playIcon);
+       if (target && visible(target)) {
+         var r = rectOf(target);
+-        return { kind: 'TAP_PLAY', x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2, vw: innerWidth, vh: innerHeight, debug: 'IconPlayerPlay' };
++        return {
++          kind: 'TAP_PLAY',
++          x: (r.left + r.right) / 2,
++          y: (r.top + r.bottom) / 2,
++          vw: innerWidth,
++          vh: innerHeight,
++          debug: 'IconPlayerPlay'
++        };
+       }
+     }
+ 
++    // Do not repeatedly call video.play() while Orange is already starting playback.
++    if (p.video && !state.videoPaused) {
++      return {
++        kind: 'VIDEO_WAIT',
++        debug: 'ready=' + state.videoReadyState +
++          '; size=' + state.videoWidth + 'x' + state.videoHeight +
++          '; signal=' + state.renderSignal +
++          '; stableMs=' + state.videoStableMs
++      };
++    }
++
+     if (p.video) {
+       try {
+         var promise = p.video.play();
+@@ -470,6 +652,7 @@
+         return { kind: 'WAIT', debug: 'play-error:' + String(e) };
+       }
+     }
++
+     return { kind: 'WAIT', debug: 'expanded-without-video' };
+   }
+ 
+@@ -617,69 +800,35 @@
+     if (!e) return;
+     saveStyle(e, 'ostvHiddenStyle');
+     e.setAttribute('data-ostv-hidden', '1');
+-    e.style.setProperty('display', 'none', 'important');
++
++    // Keep Orange/React layout nodes mounted. Make controls visually inert only.
++    e.style.setProperty('opacity', '0', 'important');
++    e.style.setProperty('pointer-events', 'none', 'important');
+   }
+ 
+   function enterCleanPlayer() {
+     var p = playerElements();
+     if (!p.container || p.mode !== 'expanded' || !p.video) return false;
+ 
++    // Never alter the player before actual rendered playback is proven.
++    var state = pageState();
++    if (!state.playing) return false;
++
+     var wrapper = document.getElementById('player-wrapper') || p.container.parentElement;
+     if (!wrapper) return false;
+ 
+-    saveStyle(wrapper, 'ostvWrapperStyle');
+-    saveStyle(p.container, 'ostvContainerStyle');
+-    saveStyle(p.video, 'ostvVideoStyle');
+-
+-    // Orange DOM: #appShell > div > #player-wrapper + normal page content.
+-    // Keep the official video element/DRM pipeline alive and hide only its siblings.
+-    if (wrapper.parentElement) {
+-      [].slice.call(wrapper.parentElement.children).forEach(function (sib) {
+-        if (sib !== wrapper) markHidden(sib);
+-      });
+-    }
+-    [].slice.call(wrapper.children).forEach(function (sib) {
+-      if (sib !== p.container) markHidden(sib);
+-    });
+-    [].slice.call(p.container.children).forEach(function (sib) {
+-      if (sib !== p.video) markHidden(sib);
+-    });
+-
++    // Non-invasive player mode: Orange already owns fullscreen geometry and the
++    // DRM/video surface. Do not set position/size/object-fit on wrapper/container/video.
+     wrapper.setAttribute('data-ostv-wrapper', '1');
+     p.container.setAttribute('data-ostv-player-container', '1');
+     p.video.setAttribute('data-ostv-player-video', '1');
+ 
+-    [wrapper, p.container].forEach(function (e) {
+-      e.style.setProperty('position', 'fixed', 'important');
+-      e.style.setProperty('left', '0', 'important');
+-      e.style.setProperty('top', '0', 'important');
+-      e.style.setProperty('right', '0', 'important');
+-      e.style.setProperty('bottom', '0', 'important');
+-      e.style.setProperty('width', '100vw', 'important');
+-      e.style.setProperty('height', '100vh', 'important');
+-      e.style.setProperty('margin', '0', 'important');
+-      e.style.setProperty('padding', '0', 'important');
+-      e.style.setProperty('overflow', 'hidden', 'important');
+-      e.style.setProperty('background', '#000', 'important');
+-      e.style.setProperty('transform', 'none', 'important');
++    // Hide only Orange overlay/control siblings while leaving them mounted.
++    [].slice.call(wrapper.children).forEach(function (sib) {
++      if (sib !== p.container) markHidden(sib);
+     });
+-    wrapper.style.setProperty('z-index', '2147483646', 'important');
+-    p.container.style.setProperty('z-index', '2147483647', 'important');
+-
+-    p.video.controls = false;
+-    p.video.style.setProperty('position', 'absolute', 'important');
+-    p.video.style.setProperty('inset', '0', 'important');
+-    p.video.style.setProperty('width', '100%', 'important');
+-    p.video.style.setProperty('height', '100%', 'important');
+-    p.video.style.setProperty('max-width', 'none', 'important');
+-    p.video.style.setProperty('max-height', 'none', 'important');
+-    p.video.style.setProperty('object-fit', 'contain', 'important');
+-    p.video.style.setProperty('background', '#000', 'important');
+-    p.video.style.setProperty('visibility', 'visible', 'important');
+-    p.video.style.setProperty('pointer-events', 'none', 'important');
+ 
+-    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+-    if (document.body) document.body.style.setProperty('overflow', 'hidden', 'important');
++    // Keep all player-container children intact (video, subtitles, internal renderer).
+     return true;
+   }
+ 
+@@ -694,8 +843,6 @@
+       e.removeAttribute('data-ostv-hidden');
+       restoreStyle(e, 'ostvHiddenStyle');
+     });
+-    document.documentElement.style.removeProperty('overflow');
+-    if (document.body) document.body.style.removeProperty('overflow');
+     return true;
+   }
+ 
+@@ -717,7 +864,7 @@
+   }
+ 
+   window.__OSTV = {
+-    version: 14,
++    version: 15,
+     normalize: norm,
+     canonicalChannel: canonicalChannel,
+     discoverChannels: discoverChannels,
+--- _v014/OrangeSimpleTV-v0.14/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java	2026-08-15 15:29:38.000000000 +0000
++++ OrangeSimpleTV-v0.15/app/src/main/java/pl/blazej/orangesimpletv/MainActivity.java	2026-08-15 16:03:21.808071821 +0000
+@@ -2,6 +2,7 @@
+ 
+ import android.app.Activity;
+ import android.content.Intent;
++import android.graphics.Bitmap;
+ import android.graphics.Color;
+ import android.graphics.Typeface;
+ import android.net.Uri;
+@@ -60,7 +61,7 @@
+     private static final long SESSION_PROBE_TIMEOUT_MS = 7_000L;
+     private static final long LOGIN_TIMEOUT_MS = 35_000L;
+     private static final long DISCOVERY_TIMEOUT_MS = 10_000L;
+-    private static final long TUNE_TIMEOUT_MS = 18_000L;
++    private static final long TUNE_TIMEOUT_MS = 25_000L;
+ 
+     private static final Channel[] FALLBACK_CHANNELS = new Channel[]{
+             new Channel(1, "TVP 1", null, "TVP 1 HD", "TVP 1", "TVP1"),
+@@ -740,11 +741,27 @@
+                 customViewCallback = callback;
+                 webView.setVisibility(View.GONE);
+                 root.addView(customView, matchParent());
+-                if (pendingChannelIndex >= 0) finishTune();
++
++                // v0.15: onShowCustomView only means that WebView created a fullscreen
++                // video surface. It does NOT prove that a decoded frame is visible yet.
++                // Keep the native tune cover until the JS render probe confirms playback.
++                if (pendingChannelIndex >= 0) {
++                    playerLoading.setText("Czekam na pierwszą klatkę obrazu…");
++                    scheduleTuneAutomation(180);
++                }
++
+                 if (playerChrome.getVisibility() == View.VISIBLE) playerChrome.bringToFront();
+                 hideSystemUi();
+             }
+ 
++            @Override public Bitmap getDefaultVideoPoster() {
++                // Never expose Android WebView's large grey Play placeholder.
++                // The tune cover remains visible until a real rendered frame is confirmed.
++                Bitmap poster = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888);
++                poster.eraseColor(Color.BLACK);
++                return poster;
++            }
++
+             @Override public void onHideCustomView() { hideCustomView(); }
+         });
+     }
+@@ -1023,6 +1040,12 @@
+                 return;
+             }
+ 
++            if ("VIDEO_WAIT".equals(kind)) {
++                playerLoading.setText("Czekam na pierwszą klatkę " + c.displayName + "…");
++                scheduleTuneAutomation(240);
++                return;
++            }
++
+             if ("TAP_EXPAND".equals(kind)) {
+                 long now = System.currentTimeMillis();
+                 if (now >= nextPlayerTapAt) {

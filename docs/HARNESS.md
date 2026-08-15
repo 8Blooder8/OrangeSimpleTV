@@ -1,0 +1,55 @@
+# OrangeSimpleTV Harness
+
+This repository is optimized for fast, repeatable agent-assisted development.
+
+## Required feedback loop
+
+1. Use Graphify query-first to narrow the code path.
+2. Make the smallest change that addresses the observed failure.
+3. Run the fast quality gate / DOM tests.
+4. Run DeepSec pattern scan for WebView/bridge/security-sensitive changes.
+5. Build APK locally on the Windows development machine; do not make APK compilation a prerequisite for pure DOM/JS iteration.
+6. Convert every real-device discovery into a mechanical regression test or invariant.
+
+## Orange TV Go invariants
+
+- The live-channel route is `/channels`; never restore `/live/channels`.
+- Channels are discovered from `[data-testid="Channel-ChannelWrapper"]`.
+- The first child of a channel card is its visual `TileWrapper`; channel details/text are outside that tile.
+- **Channel activation is two-phase.** `TileWrapper` owns React `onMouseEnter`/`onMouseLeave`; hover causes React to mount a separate centered channel-control button asynchronously.
+- Never send the tuning tap in the same step that reveals hover state. First reveal, wait for React/WebView commit, then re-query the card and resolve `[data-testid="IconPlayerPlay"]`.
+- The actual tune tap must target the closest real `<button>` containing `IconPlayerPlay`, not the underlying logo/image or `Channel-ChannelWrapper` text area.
+- A real captured tile was 196×140 and the Play button 40×40 with the same center; geometry may scale, so always compute `getBoundingClientRect()` at runtime rather than hard-coding pixels.
+- A valid player shell is Orange's official `[data-testid="player-container"]` in `mode="expanded"` with `#video-player`.
+- **`mode="expanded"` and `IconPlayerPause` are not proof that video is visible.** Real runtime traces show an expanded player can exist while `readyState=0`, decoded size is `0x0`, and no frame has been presented.
+- Final tune success requires rendered-video evidence: decoded size > 0, `readyState >= 2`, not paused/ended, plus a recent render/progress signal (`requestVideoFrameCallback`, playback-quality frames, or forward `currentTime` progress) held stable briefly.
+- **Never hammer `video.play()` while `readyState == 0` or Orange has not attached a usable MSE/EME media source.** Real playback attaches the blob source asynchronously after the expanded shell appears.
+- `mode="background"` is a valid intermediate player state, never final success; when Orange exposes `IconPlayerScroll`, use its own control to reach `expanded`.
+- **Clean-player mode is non-invasive.** Never resize/reposition `#video-player`, its DRM-owned container, or `#player-wrapper`; hide Orange controls with opacity/pointer-events only and keep React/player nodes mounted.
+- Android `onShowCustomView()` is not a tune-success signal.
+- **Do not keep a full-screen opaque native loading View over an initialized Orange player shell.** Some TV compositor/WebView paths may stop or starve the video surface when it is completely occluded; keep only a small transparent-overlay status label while media initializes.
+- The Activity/window must remain hardware accelerated and WebView must not be forced to `LAYER_TYPE_SOFTWARE`; use the normal compositor path (`LAYER_TYPE_NONE`).
+- WebView media compatibility must be diagnosed independently from Android native DRM: record active WebView provider/version, EME API presence, MSE codec support, Widevine key-system access and native `MediaDrm.isCryptoSchemeSupported()`.
+- Grant only `PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID`, and only to trusted Orange origins. Never grant all future WebView permission resources wholesale.
+- A fixed fake browser version is not a permanent compatibility solution. Prefer a UA derived from the real WebView Chromium version and use bounded fallback profiles; persist the profile that actually renders video.
+- Recovery is bounded and ordered: soft wake -> alternate UA profiles -> cache refresh without deleting cookies -> fresh WebView instance -> terminal diagnostic. It must never loop forever.
+- Preserve the official WebView/EME/Widevine media path. No DRM circumvention, extracted keys, or replacement stream pipeline.
+
+## Login invariants
+
+- Orange's login submit can initially be disabled after values are inserted.
+- Set React-controlled inputs through the native value setter and dispatch input/change events.
+- Do not click a disabled submit.
+- Once a submit has actually occurred, never automatically submit a second time merely because a callback/navigation event was missed.
+- Treat disappearance of `login-screen-container` plus authenticated home/navigation/channel DOM as success.
+
+## Security / corpus rules
+
+Never commit authenticated Orange exports, cookies, tokens, credentials, keystores, APK build outputs, `.deepsec`, Graphify cache, or other private session state. Use sanitized fixtures only.
+
+## Tooling policy
+
+- Graphify: code understanding and path tracing; incremental updates for ordinary edits.
+- Open Interpreter: local QA runner on demand, not automatic paid-model CI.
+- DeepSec: free/pattern scan in PR CI; deeper AI review remains manual.
+- Runtime APK must not depend on any of these development tools.

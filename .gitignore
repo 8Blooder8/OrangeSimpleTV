@@ -1,0 +1,35 @@
+# Local developer/agent state
+.deepsec/
+graphify-out/
+
+# Android/build output
+out/
+build/
+*.apk
+*.aab
+*.apks
+*.keystore
+*.jks
+
+# Python/Node caches
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+
+# Local logs/temp
+*.log
+*.tmp
+*.temp
+
+# Never commit raw authenticated Orange TV exports.
+# Sanitized fixtures belong only under tests/fixtures/.
+Orange TV Go.htm
+Orange TV Go.html
+KANAŁY.htm
+KANALY.htm
+TVP.htm
+*authenticated*.htm
+*authenticated*.html
+*session*.har
+*.har
