@@ -1,32 +1,37 @@
-# Orange Simple TV v0.28
+# Orange Simple TV v0.29
 
-Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Orange DIW377.
+Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod DIW377.
 
-## v0.28 — DIW377 switch recovery
+## v0.29 — diagnostyka kanałów, które nie tworzą playera
 
-Zmiany są oparte na realnych raportach v0.27 z dekodera:
+Zmiana wynika z realnego raportu `Warner TV -> Kino Polska HD` na DIW377. Stary player zamykał się prawidłowo i Play trafiał w właściwy kafelek, ale Orange nie tworzył nowego `player-container` nawet po reloadzie.
 
-- v0.27 naprawił zamykanie starego playera (prawdziwy `player_close_X`), ale po poprawnym zamknięciu warm-switch nadal mógł utknąć na aktywacji kolejnego kafelka,
-- warm switch dostaje 140 ms na ustabilizowanie React DOM po fizycznym unmount starego playera,
-- pierwsza aktywacja targetu w warm-switch ma osobny bounded deadline 4 s,
-- jeśli po tym czasie Orange nie utworzy nowego playera, aplikacja wykonuje dokładnie jeden czysty reload oficjalnego `/channels` i ponawia TEN SAM target od próby 0 zamiast czekać na wielokrotne 8-sekundowe retry starego DOM,
-- automatyczny rollback nie może nadpisać nowszego żądania użytkownika,
-- diagnostyka switchu jest teraz snapshotem per sesja: eventy i stateTransitions są kopiowane przed rollbackiem, zapisywane także jako `ostv-switch-session-<id>.json`, a failure ma `failureCode` i `failureReason`,
-- zachowane: exact-X close, identity check target tile, 155 lokalnych logo, EPG cache, protected playback gate i clean player.
+v0.29:
+
+- wykonuje maksymalnie 1 normalny Play + 1 świeży reload `/channels` + 1 finalny Play,
+- nie klika już tego samego niedziałającego kanału co ~8 s aż do globalnego timeoutu,
+- po nieudanym reloadzie nie uruchamia starej drabiny UA/cache/WebView-recreate,
+- kończy ten przypadek jako `CHANNEL_PLAYER_NOT_CREATED`,
+- zapisuje `activationDiagnostics`: DOM kafelka, prawdziwy Play, React handler, widoczne alerty/dialogi/toasty, stan playera i Resource Timing,
+- zapisuje `activationNetwork`: istotne requesty, błędy transportu i HTTP >= 400,
+- do switch reportu dodaje `sanitizedWebDiagnostics`,
+- nie przechwytuje fetch/XHR i nie ingeruje w `video.src`, MSE, EME ani MediaKeys.
+
+Szczegóły: `V0.29_CHANNEL_ACTIVATION_DIAGNOSTICS.md` i `TEST_REPORT_v0.29.md`.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.28
+cd C:\OrangeSimpleTV-v0.29
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
 
-Build musi potwierdzić:
+Build powinien potwierdzić:
 
 ```text
 assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-Wynik: `C:\OrangeSimpleTV-v0.28\out\OrangeSimpleTV.apk`.
+Wynik: `C:\OrangeSimpleTV-v0.29\out\OrangeSimpleTV.apk`.
