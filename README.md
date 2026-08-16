@@ -1,26 +1,22 @@
-# Orange Simple TV v0.32
+# Orange Simple TV v0.33
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Orange DIW377.
 
-## v0.32 — pierwsze logowanie ręczne, później tylko automatyczne
+## v0.33 — exact-case login + bezpieczny submit React
 
-- po instalacji lub wyczyszczeniu danych formularz logowania pojawia się dokładnie raz,
-- prywatne dane appliance build są wstępnie wpisane, ale pierwszy submit wymaga naciśnięcia `ZALOGUJ`,
-- po pierwszym poprawnym logowaniu zapisywany jest prywatny marker enrollment,
-- przy kolejnych uruchomieniach pola login/hasło są ukryte,
-- ważna sesja Orange jest używana bez ponownego logowania,
-- brakująca/wygasła/odrzucona sesja jest odnawiana wyłącznie automatycznie,
-- recovery podczas wykrywania kanałów również nie wraca do ręcznego formularza,
-- wyczyszczenie danych aplikacji lub uninstall celowo wymaga jednego ponownego ręcznego logowania.
-
-Zachowane są poprawki v0.31: discovery recovery, normalizacja loginu, automatyczny PIN dorosłych, lekki hot path playera, lokalne loga i diagnostyka.
+- login TV Go jest przekazywany dokładnie w skonfigurowanej postaci; aplikacja nie zmienia już wielkości liter identyfikatora,
+- formularz Orange jest teraz obsługiwany dwufazowo: najpierw wpisanie wartości do controlled inputs, potem osobna runda na submit po potwierdzeniu, że wartości pozostały stabilne,
+- nie klikamy przycisku logowania w tej samej rundzie JavaScript, w której dopiero ustawiliśmy pola,
+- zachowany kontrakt v0.32: jedno ręczne zatwierdzenie po instalacji/wyczyszczeniu danych, potem wyłącznie automatyczne odnawianie sesji,
+- aktualizacja z v0.32 nie powinna wymagać ponownego ręcznego wpisywania danych; zmiana markera konta wymusza automatyczne odtworzenie sesji,
+- discovery, automatyczny PIN dorosłych, player, DRM/Widevine, EPG i lokalne loga pozostają bez zmian.
 
 **Uwaga:** prywatny build zawiera lokalnie skonfigurowane dane logowania/PIN. Same wartości nie są publikowane w tym repozytorium.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.32
+cd C:\OrangeSimpleTV-v0.33
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
@@ -32,4 +28,4 @@ assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-APK: `C:\OrangeSimpleTV-v0.32\out\OrangeSimpleTV.apk`.
+APK: `C:\OrangeSimpleTV-v0.33\out\OrangeSimpleTV.apk`.
