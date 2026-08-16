@@ -1,28 +1,26 @@
-# Orange Simple TV v0.29
+# Orange Simple TV v0.30
 
-Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod DIW377.
+Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Orange DIW377.
 
-## v0.29 — diagnostyka kanałów, które nie tworzą playera
+## v0.30 — prywatny appliance build
 
-Zmiana wynika z realnego raportu `Warner TV -> Kino Polska HD` na DIW377. Stary player zamykał się prawidłowo i Play trafiał w właściwy kafelek, ale Orange nie tworzył nowego `player-container` nawet po reloadzie.
+- automatyczne logowanie do skonfigurowanego konta Orange TV Go bez wpisywania danych pilotem,
+- automatyczna obsługa oficjalnego modala kodu dorosłych: pojedyncze pole PIN, cztery osobne pola albo keypad 0–9,
+- po odblokowaniu program jest kontynuowany automatycznie; jeżeli Orange wymaga ponownego Play, target jest klikany tylko raz,
+- ciężka diagnostyka v0.29 została zdjęta z normalnego hot path i pozostaje na failure path,
+- tune polling używa `pageStateLite()` zamiast pełnego snapshotu EME/DOM,
+- pełna `emeMatrix` nie jest serializowana w każdym `VIDEO_WAIT`,
+- request tracing nie buduje już JSON dla każdego zasobu,
+- zachowane: exact-X close, close-before-tune, channel identity check, rendered-frame gate, EPG, lokalne logo i publiczne diagnostics.
 
-v0.29:
+**Uwaga:** prywatny build zawiera lokalnie skonfigurowane dane logowania/PIN, dlatego APK/source ZIP nie powinny być udostępniane osobom trzecim. Same wartości nie są publikowane w tym repozytorium.
 
-- wykonuje maksymalnie 1 normalny Play + 1 świeży reload `/channels` + 1 finalny Play,
-- nie klika już tego samego niedziałającego kanału co ~8 s aż do globalnego timeoutu,
-- po nieudanym reloadzie nie uruchamia starej drabiny UA/cache/WebView-recreate,
-- kończy ten przypadek jako `CHANNEL_PLAYER_NOT_CREATED`,
-- zapisuje `activationDiagnostics`: DOM kafelka, prawdziwy Play, React handler, widoczne alerty/dialogi/toasty, stan playera i Resource Timing,
-- zapisuje `activationNetwork`: istotne requesty, błędy transportu i HTTP >= 400,
-- do switch reportu dodaje `sanitizedWebDiagnostics`,
-- nie przechwytuje fetch/XHR i nie ingeruje w `video.src`, MSE, EME ani MediaKeys.
-
-Szczegóły: `V0.29_CHANNEL_ACTIVATION_DIAGNOSTICS.md` i `TEST_REPORT_v0.29.md`.
+Szczegóły: `V0.30_AUTO_LOGIN_ADULT_PIN_PERFORMANCE.md` i `TEST_REPORT_v0.30.md`.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.29
+cd C:\OrangeSimpleTV-v0.30
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
@@ -34,4 +32,6 @@ assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-Wynik: `C:\OrangeSimpleTV-v0.29\out\OrangeSimpleTV.apk`.
+Wynik: `C:\OrangeSimpleTV-v0.30\out\OrangeSimpleTV.apk`.
+
+Playback, DRM/Widevine, MSE/EME i źródło streamu pozostają własnością oficjalnego playera Orange. Aplikacja nie podmienia `video.src` ani MediaKeys.
