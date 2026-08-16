@@ -1,28 +1,27 @@
-# Orange Simple TV v0.29
+# Orange Simple TV v0.36
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod DIW377.
 
-## v0.29 — diagnostyka kanałów, które nie tworzą playera
+## v0.36 — v0.29 + auto-login/PIN + twarde potwierdzenie sesji
 
-Zmiana wynika z realnego raportu `Warner TV -> Kino Polska HD` na DIW377. Stary player zamykał się prawidłowo i Play trafiał w właściwy kafelek, ale Orange nie tworzył nowego `player-container` nawet po reloadzie.
+Bazą runtime pozostaje działająca v0.29. Zmieniona jest tylko warstwa logowania dodana później.
 
-v0.29:
+- login nie jest uznawany za udany na podstawie samego shell/home/navigation Orange;
+- `AUTH` wymaga co najmniej 3 realnych kart kanałów Orange;
+- po udanym submit i lądowaniu na home aplikacja przechodzi raz na `/channels` i czeka na prawdziwe karty;
+- dopiero wtedy uruchamia niezmienione discovery v0.29;
+- istniejąca sesja także jest uznawana za ważną dopiero po pojawieniu się kart kanałów;
+- startup nie fokusuje pola tekstowego, żeby nie budzić TV IME DIW377;
+- zachowane: auto-login po pierwszym enrollment, automatyczny kod dorosłych, player/switch/EPG/DRM v0.29.
 
-- wykonuje maksymalnie 1 normalny Play + 1 świeży reload `/channels` + 1 finalny Play,
-- nie klika już tego samego niedziałającego kanału co ~8 s aż do globalnego timeoutu,
-- po nieudanym reloadzie nie uruchamia starej drabiny UA/cache/WebView-recreate,
-- kończy ten przypadek jako `CHANNEL_PLAYER_NOT_CREATED`,
-- zapisuje `activationDiagnostics`: DOM kafelka, prawdziwy Play, React handler, widoczne alerty/dialogi/toasty, stan playera i Resource Timing,
-- zapisuje `activationNetwork`: istotne requesty, błędy transportu i HTTP >= 400,
-- do switch reportu dodaje `sanitizedWebDiagnostics`,
-- nie przechwytuje fetch/XHR i nie ingeruje w `video.src`, MSE, EME ani MediaKeys.
+Szczegóły: `V0.36_STRICT_LOGIN_CHANNEL_PROOF.md` oraz `TEST_REPORT_v0.36.md`.
 
-Szczegóły: `V0.29_CHANNEL_ACTIVATION_DIAGNOSTICS.md` i `TEST_REPORT_v0.29.md`.
+**Uwaga:** prywatny build zawiera lokalnie skonfigurowane dane logowania/PIN. Same wartości nie są publikowane w repozytorium.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.29
+cd C:\OrangeSimpleTV-v0.36
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
@@ -34,4 +33,4 @@ assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-Wynik: `C:\OrangeSimpleTV-v0.29\out\OrangeSimpleTV.apk`.
+APK: `C:\OrangeSimpleTV-v0.36\out\OrangeSimpleTV.apk`.
