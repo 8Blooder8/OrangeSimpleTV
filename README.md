@@ -1,37 +1,29 @@
-# Orange Simple TV v0.29
+# Orange Simple TV v0.35
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod DIW377.
 
-## v0.29 — diagnostyka kanałów, które nie tworzą playera
+## v0.35 — v0.29 + poprawka pierwszego logowania + PIN dorosłych
 
-Zmiana wynika z realnego raportu `Warner TV -> Kino Polska HD` na DIW377. Stary player zamykał się prawidłowo i Play trafiał w właściwy kafelek, ale Orange nie tworzył nowego `player-container` nawet po reloadzie.
+Bazą runtime pozostaje bezpośrednio v0.29. Nie zmieniono discovery kanałów, EPG, playera, DRM ani switchu.
 
-v0.29:
+Logcat z DIW377 pokazał, że pola pierwszego logowania były już wypełnione, ale końcowy `DPAD_CENTER` był gubiony podczas zamykania systemowej klawiatury TV. W efekcie akcja `ZALOGUJ` nie była wywoływana.
 
-- wykonuje maksymalnie 1 normalny Play + 1 świeży reload `/channels` + 1 finalny Play,
-- nie klika już tego samego niedziałającego kanału co ~8 s aż do globalnego timeoutu,
-- po nieudanym reloadzie nie uruchamia starej drabiny UA/cache/WebView-recreate,
-- kończy ten przypadek jako `CHANNEL_PLAYER_NOT_CREATED`,
-- zapisuje `activationDiagnostics`: DOM kafelka, prawdziwy Play, React handler, widoczne alerty/dialogi/toasty, stan playera i Resource Timing,
-- zapisuje `activationNetwork`: istotne requesty, błędy transportu i HTTP >= 400,
-- do switch reportu dodaje `sanitizedWebDiagnostics`,
-- nie przechwytuje fetch/XHR i nie ingeruje w `video.src`, MSE, EME ani MediaKeys.
+v0.35:
 
-Szczegóły: `V0.29_CHANNEL_ACTIVATION_DIAGNOSTICS.md` i `TEST_REPORT_v0.29.md`.
+- pierwszy ekran ma od razu fokus na `ZALOGUJ`, więc nie otwiera TV IME bez potrzeby,
+- prefill danych pozostaje bez zmian,
+- pierwszy udany login zapisuje enrollment; późniejsze odnowienia sesji są automatyczne,
+- zachowana jest automatyczna obsługa oficjalnego kodu dorosłych,
+- wszystkie ścieżki kanałów/playera pozostają z v0.29.
+
+Prywatne wartości loginu, kodu poufnego i PIN-u nie są publikowane w repozytorium.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.29
+cd C:\OrangeSimpleTV-v0.35
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
 
-Build powinien potwierdzić:
-
-```text
-assets OK: 155/155 logo
-[verify] Local logos in APK: 155/155
-```
-
-Wynik: `C:\OrangeSimpleTV-v0.29\out\OrangeSimpleTV.apk`.
+Wynik: `C:\OrangeSimpleTV-v0.35\out\OrangeSimpleTV.apk`.
