@@ -1,28 +1,19 @@
-# Orange Simple TV v0.29
+# Orange Simple TV v0.38
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod DIW377.
 
-## v0.29 — diagnostyka kanałów, które nie tworzą playera
+## v0.38 — v0.29 + poprawiona obsługa kodu dorosłych
 
-Zmiana wynika z realnego raportu `Warner TV -> Kino Polska HD` na DIW377. Stary player zamykał się prawidłowo i Play trafiał w właściwy kafelek, ale Orange nie tworzył nowego `player-container` nawet po reloadzie.
+Baza funkcjonalna jest bezpośrednio z v0.29. Logowanie, discovery kanałów, EPG, przełączanie, player i DRM pozostają bez zmian względem v0.29.
 
-v0.29:
+Raport z DIW377 pokazał, że Orange tworzy modal kodu dorosłych asynchronicznie około 1.2–1.4 s po prawidłowym Play. v0.37 potrafiła go zobaczyć w diagnostyce, ale regularna pętla tune mogła ominąć krótkie okno React portal. v0.38 dodaje lekkie opóźnione próby wyłącznie obsługi oficjalnego modala PIN; dla zwykłych kanałów są no-op.
 
-- wykonuje maksymalnie 1 normalny Play + 1 świeży reload `/channels` + 1 finalny Play,
-- nie klika już tego samego niedziałającego kanału co ~8 s aż do globalnego timeoutu,
-- po nieudanym reloadzie nie uruchamia starej drabiny UA/cache/WebView-recreate,
-- kończy ten przypadek jako `CHANNEL_PLAYER_NOT_CREATED`,
-- zapisuje `activationDiagnostics`: DOM kafelka, prawdziwy Play, React handler, widoczne alerty/dialogi/toasty, stan playera i Resource Timing,
-- zapisuje `activationNetwork`: istotne requesty, błędy transportu i HTTP >= 400,
-- do switch reportu dodaje `sanitizedWebDiagnostics`,
-- nie przechwytuje fetch/XHR i nie ingeruje w `video.src`, MSE, EME ani MediaKeys.
-
-Szczegóły: `V0.29_CHANNEL_ACTIVATION_DIAGNOSTICS.md` i `TEST_REPORT_v0.29.md`.
+Prywatna wartość PIN nie jest publikowana w repozytorium.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.29
+cd C:\OrangeSimpleTV-v0.38
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
@@ -34,4 +25,4 @@ assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-Wynik: `C:\OrangeSimpleTV-v0.29\out\OrangeSimpleTV.apk`.
+Wynik: `C:\OrangeSimpleTV-v0.38\out\OrangeSimpleTV.apk`.
