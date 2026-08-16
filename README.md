@@ -1,29 +1,26 @@
-# Orange Simple TV v0.31
+# Orange Simple TV v0.32
 
 Lekki frontend Android TV dla oficjalnego `tvgo.orange.pl`, projektowany pod Orange DIW377.
 
-## v0.31 — pewne auto-logowanie + samonaprawa wykrywania kanałów
+## v0.32 — pierwsze logowanie ręczne, później tylko automatyczne
 
-Ta wersja naprawia regresję v0.30, w której automatyczne logowanie mogło zakończyć się bez realnych kart kanałów.
+- po instalacji lub wyczyszczeniu danych formularz logowania pojawia się dokładnie raz,
+- prywatne dane appliance build są wstępnie wpisane, ale pierwszy submit wymaga naciśnięcia `ZALOGUJ`,
+- po pierwszym poprawnym logowaniu zapisywany jest prywatny marker enrollment,
+- przy kolejnych uruchomieniach pola login/hasło są ukryte,
+- ważna sesja Orange jest używana bez ponownego logowania,
+- brakująca/wygasła/odrzucona sesja jest odnawiana wyłącznie automatycznie,
+- recovery podczas wykrywania kanałów również nie wraca do ręcznego formularza,
+- wyczyszczenie danych aplikacji lub uninstall celowo wymaga jednego ponownego ręcznego logowania.
 
-Najważniejsze zmiany:
-
-- skonfigurowane konto jest teraz autorytatywne: po aktualizacji z wersji bez markera sesji aplikacja czyści stary cookie jar Orange jeden raz i wykonuje świeże auto-logowanie;
-- kolejne uruchomienia mogą użyć istniejącej sesji tylko wtedy, gdy została wcześniej utworzona przez ten appliance build dla tego samego skonfigurowanego konta;
-- identyfikator TV jest normalizowany do formatu z wielkim `M` przed wypełnieniem formularza Orange;
-- po udanym submit aplikacja daje SPA 120 ms na zapisanie stanu/cookies przed wymuszeniem `/channels`;
-- discovery, które dwa razy z rzędu widzi <3 kanały, sprawdza `loginState()` i potrafi automatycznie wrócić do logowania zamiast kończyć pustą/fallbackową listą;
-- po znalezieniu realnej listy kanałów polling DOM jest ograniczony, a indeks metadanych programu ma krótki cache;
-- zachowana automatyczna obsługa kodu dorosłych oraz wszystkie reguły playera/switch/DRM z v0.30.
+Zachowane są poprawki v0.31: discovery recovery, normalizacja loginu, automatyczny PIN dorosłych, lekki hot path playera, lokalne loga i diagnostyka.
 
 **Uwaga:** prywatny build zawiera lokalnie skonfigurowane dane logowania/PIN. Same wartości nie są publikowane w tym repozytorium.
-
-Szczegóły: `V0.31_LOGIN_DISCOVERY_RECOVERY_PERFORMANCE.md` i `TEST_REPORT_v0.31.md`.
 
 ## Windows build
 
 ```powershell
-cd C:\OrangeSimpleTV-v0.31
+cd C:\OrangeSimpleTV-v0.32
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
@@ -35,4 +32,4 @@ assets OK: 155/155 logo
 [verify] Local logos in APK: 155/155
 ```
 
-Wynik: `C:\OrangeSimpleTV-v0.31\out\OrangeSimpleTV.apk`.
+APK: `C:\OrangeSimpleTV-v0.32\out\OrangeSimpleTV.apk`.
